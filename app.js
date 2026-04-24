@@ -21,11 +21,19 @@ function switchSection(secId, navId) {
     document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
     document.getElementById(secId).classList.add('active');
     document.getElementById(navId).classList.add('active');
+    
+    if (secId === 'sec-macchina') {
+        document.body.className = 'theme-macchina';
+    } else if (secId === 'sec-spesa') {
+        document.body.className = 'theme-spesa';
+    }
 }
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        if (!e.target.dataset.target) return; // Ignora i bottoni dei sub-tab (Singolo/Famiglia)
+        
+        document.querySelectorAll('.tab-btn[data-target]').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         e.target.classList.add('active');
         document.getElementById(e.target.dataset.target).classList.add('active');
@@ -50,8 +58,31 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
     const km = parseInt(document.getElementById('prenotazione-km').value);
     const motivo = document.getElementById('prenotazione-motivo').value;
     
+    // Controlli di validità su Data e Ora
+    const startDateTime = new Date(`${dataInizio}T${oraInizio}`);
+    const endDateTime = new Date(`${dataFine}T${oraFine}`);
+
+    if (endDateTime <= startDateTime) {
+        alert("Errore: La data e l'ora di fine devono essere successive a quelle di inizio. Non puoi prenotare nel passato!");
+        btnSubmit.textContent = originalText;
+        btnSubmit.disabled = false;
+        return;
+    }
+
+    const minInizio = parseInt(oraInizio.split(':')[1]);
+    const minFine = parseInt(oraFine.split(':')[1]);
+
+    if (minInizio % 5 !== 0 || minFine % 5 !== 0) {
+        alert("Errore: I minuti dell'orario devono essere multipli di 5 (es. 00, 05, 10, 15...). Usa i controlli del menu a tendina.");
+        btnSubmit.textContent = originalText;
+        btnSubmit.disabled = false;
+        return;
+    }
+    
     if (!km || km < 1) {
         alert("Inserisci un numero di Km valido.");
+        btnSubmit.textContent = originalText;
+        btnSubmit.disabled = false;
         return;
     }
     
@@ -226,6 +257,16 @@ window.rimuoviSpesa = async function(id) {
 
 window.cancellaPrenotazione = cancellaPrenotazione;
 
+window.switchDash = function(type) {
+    document.getElementById('btn-dash-singolo').classList.remove('active');
+    document.getElementById('btn-dash-collettivo').classList.remove('active');
+    document.getElementById(`btn-dash-${type}`).classList.add('active');
+    
+    document.getElementById('dash-singolo').style.display = 'none';
+    document.getElementById('dash-collettivo').style.display = 'none';
+    document.getElementById(`dash-${type}`).style.display = 'block';
+};
+
 // Render UI
 function renderRegistro() {
     const list = document.getElementById('lista-registro');
@@ -295,7 +336,7 @@ function renderDashboard() {
     const totalLitri = dataLitri.reduce((a,b) => a+b, 0);
     
     const statKmEl = document.getElementById('stat-km');
-    if(statKmEl) statKmEl.textContent = totalKm;
+    if(statKmEl) statKmEl.textContent = totalKm + ' Km';
     
     const statFuelEl = document.getElementById('stat-fuel');
     if(statFuelEl) statFuelEl.textContent = totalSpese.toFixed(2) + ' €';
@@ -309,7 +350,7 @@ function renderDashboard() {
     if(charts.km) charts.km.destroy();
     charts.km = new Chart(document.getElementById('chart-km'), {
         type: 'bar',
-        data: { labels: utenti, datasets: [{ label: 'Km Previsti', data: dataKm, backgroundColor: '#3b82f6' }] },
+        data: { labels: utenti, datasets: [{ label: 'Km Totali', data: dataKm, backgroundColor: '#3b82f6' }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Chilometri per Utente' } } }
     });
 
@@ -332,6 +373,158 @@ function renderDashboard() {
         type: 'bar',
         data: { labels: utenti, datasets: [{ label: 'N. Prenotazioni attive', data: dataPren, backgroundColor: '#8b5cf6' }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Numero di Prenotazioni Attive' } } }
+    });
+
+    // --- NUOVO GRAFICO: BILANCIO CARBURANTE ---
+    // Consumo macchina medio: 5.8 L/100km
+    const consumoMedioKm_L = 100 / 5.8; // ~17.24 Km/L
+    
+    // Calcoliamo il costo medio della benzina al litro inserita fino ad oggi
+    let costoMedioLitro = 1.8; // default
+    if (totalLitri > 0) {
+        costoMedioLitro = totalSpese / totalLitri;
+    }
+    const costoMedioKm = costoMedioLitro / consumoMedioKm_L; // Costo per singolo chilometro (es. ~0.104 €/km)
+    
+    // Calcoliamo il bilancio per ogni utente
+    const dataBilancioKm = [];
+    const tableHeader = document.getElementById('table-header-utenti');
+    const tableRowKm = document.getElementById('table-row-km');
+    const tableRowEuro = document.getElementById('table-row-euro');
+    const tableRowScostamento = document.getElementById('table-row-scostamento');
+    
+    // Resettiamo le righe
+    tableHeader.innerHTML = '<th>Dato</th>';
+    tableRowKm.innerHTML = '<td style="text-align: left; font-weight: 600;">Km Percorsi</td>';
+    tableRowEuro.innerHTML = '<td style="text-align: left; font-weight: 600;">€ Versati</td>';
+    tableRowScostamento.innerHTML = '<td style="text-align: left; font-weight: 600;">Bilancio (€)</td>';
+
+    utenti.forEach(u => {
+        const kmGuidati = STATE.prenotazioni.filter(p => p.utente === u && p.status === 'attiva').reduce((sum, p) => sum + p.km, 0);
+        const litriComprati = STATE.rifornimenti.filter(r => r.utente === u).reduce((sum, r) => sum + (r.litri || 0), 0);
+        const euroVersati = STATE.rifornimenti.filter(r => r.utente === u).reduce((sum, r) => sum + r.importo, 0);
+        
+        // Il credito in Km guadagnato grazie ai litri versati
+        const creditoKm = litriComprati * consumoMedioKm_L;
+        const bilancioKm = creditoKm - kmGuidati;
+        dataBilancioKm.push(parseFloat(bilancioKm.toFixed(1)));
+        
+        // Calcolo monetario per la tabella
+        // Quanto avrebbe dovuto pagare per i km guidati
+        const debitoEuro = kmGuidati * costoMedioKm;
+        // Scostamento = quanto ha versato - quanto avrebbe dovuto versare
+        const bilancioEuro = euroVersati - debitoEuro;
+        
+        // Popoliamo la tabella
+        tableHeader.innerHTML += `<th>${u}</th>`;
+        tableRowKm.innerHTML += `<td>${kmGuidati}</td>`;
+        tableRowEuro.innerHTML += `<td>${euroVersati.toFixed(2)} €</td>`;
+        
+        let colorClass = '';
+        let sign = '';
+        if (bilancioEuro > 0.5) { // margine
+            colorClass = 'text-green';
+            sign = '+';
+        } else if (bilancioEuro < -0.5) {
+            colorClass = 'text-red';
+        }
+        
+        tableRowScostamento.innerHTML += `<td class="${colorClass}">${sign}${bilancioEuro.toFixed(2)} €</td>`;
+    });
+
+    // Assegnazione colori condizionale per grafico
+    const coloriBilancio = dataBilancioKm.map(b => {
+        if (b < 0) return 'rgba(239, 68, 68, 0.9)'; // Rosso
+        if (b > 0) return 'rgba(16, 185, 129, 0.9)'; // Verde
+        return 'rgba(234, 179, 8, 0.9)'; // Giallo
+    });
+
+    if(charts.bilancio) charts.bilancio.destroy();
+    charts.bilancio = new Chart(document.getElementById('chart-bilancio'), {
+        type: 'bar',
+        data: {
+            labels: utenti,
+            datasets: [{
+                data: dataBilancioKm,
+                backgroundColor: coloriBilancio,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { 
+                    display: true, 
+                    text: 'Bilancio Carburante (Consumo stimato: 5.8 L/100Km)',
+                    font: { size: 14 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.raw;
+                            return `Scostamento: ${val > 0 ? '+' : ''}${val} Km`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    title: { display: true, text: 'Scostamento in Km' }
+                }
+            }
+        }
+    });
+
+    // --- GRAFICI COLLETTIVI (ANDAMENTO MENSILE) ---
+    const monthKeys = [];
+    STATE.prenotazioni.filter(p => p.status === 'attiva').forEach(p => {
+        if(p.dataInizio || p.data) monthKeys.push((p.dataInizio || p.data).substring(0, 7)); // YYYY-MM
+    });
+    STATE.rifornimenti.forEach(r => {
+        if(r.data) monthKeys.push(r.data.substring(0, 7));
+    });
+    
+    const uniqueMonths = [...new Set(monthKeys)].sort(); // Ordinamento cronologico
+    const labelsColl = uniqueMonths.map(ym => {
+        const [y, m] = ym.split('-');
+        const months = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+        return `${months[parseInt(m)-1]} ${y}`;
+    });
+
+    const dataCollKm = uniqueMonths.map(ym => STATE.prenotazioni.filter(p => p.status === 'attiva' && (p.dataInizio || p.data || '').startsWith(ym)).reduce((sum, p) => sum + p.km, 0));
+    const dataCollSpese = uniqueMonths.map(ym => STATE.rifornimenti.filter(r => (r.data || '').startsWith(ym)).reduce((sum, r) => sum + r.importo, 0));
+    const dataCollLitri = uniqueMonths.map(ym => STATE.rifornimenti.filter(r => (r.data || '').startsWith(ym)).reduce((sum, r) => sum + (r.litri || 0), 0));
+    const dataCollPren = uniqueMonths.map(ym => STATE.prenotazioni.filter(p => p.status === 'attiva' && (p.dataInizio || p.data || '').startsWith(ym)).length);
+
+    if(charts.collKm) charts.collKm.destroy();
+    charts.collKm = new Chart(document.getElementById('chart-coll-km'), {
+        type: 'line',
+        data: { labels: labelsColl, datasets: [{ label: 'Km Totali', data: dataCollKm, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Chilometri' } } }
+    });
+
+    if(charts.collSpese) charts.collSpese.destroy();
+    charts.collSpese = new Chart(document.getElementById('chart-coll-spese'), {
+        type: 'line',
+        data: { labels: labelsColl, datasets: [{ label: 'Spese Rifornimenti (€)', data: dataCollSpese, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Spese Carburante' } } }
+    });
+
+    if(charts.collLitri) charts.collLitri.destroy();
+    charts.collLitri = new Chart(document.getElementById('chart-coll-litri'), {
+        type: 'line',
+        data: { labels: labelsColl, datasets: [{ label: 'Litri Versati (L)', data: dataCollLitri, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.2)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Litri' } } }
+    });
+
+    if(charts.collPren) charts.collPren.destroy();
+    charts.collPren = new Chart(document.getElementById('chart-coll-prenotazioni'), {
+        type: 'line',
+        data: { labels: labelsColl, datasets: [{ label: 'N. Prenotazioni', data: dataCollPren, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.2)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Prenotazioni' } } }
     });
 }
 
