@@ -16,10 +16,18 @@
 
 body {
     font-family: 'Outfit', sans-serif;
-    background: linear-gradient(135deg, #475569 0%, #3730a3 100%);
     color: var(--text-color);
     min-height: 100vh;
     padding: 2rem 1rem;
+    transition: background 0.5s ease;
+}
+
+body.theme-macchina {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+}
+
+body.theme-spesa {
+    background: linear-gradient(135deg, #10b981 0%, #047857 100%);
 }
 
 .app-container {
@@ -36,9 +44,10 @@ h1 {
     font-weight: 700;
     font-size: 2.5rem;
     margin-bottom: 1.5rem;
-    background: linear-gradient(to right, #60a5fa, #a78bfa);
+    background: linear-gradient(to right, #ffffff, #e2e8f0);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 .main-nav {
@@ -89,17 +98,28 @@ h1 {
     margin-bottom: 1.5rem;
     overflow-x: auto;
     padding-bottom: 0.5rem;
+    scrollbar-width: none; /* Nasconde scrollbar su Firefox */
+    -webkit-overflow-scrolling: touch;
+}
+
+.tabs::-webkit-scrollbar {
+    display: none; /* Nasconde scrollbar su Chrome/Safari/Edge */
 }
 
 .tab-btn {
+    flex: 1; /* Distribuisce lo spazio equamente */
+    min-width: max-content; /* Garantisce che il testo non venga tagliato */
+    text-align: center;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-color);
     color: var(--text-color);
-    padding: 0.5rem 1.25rem;
+    padding: 0.8rem 0.5rem; /* Più spazio verticale per cliccare col dito */
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    font-size: 1rem; /* Testo più grande e leggibile */
+    font-weight: 500;
 }
 
 .tab-btn.active, .tab-btn:hover {
@@ -272,4 +292,31 @@ select option {
 }
 .full-width {
     /* Manteniamo la classe per retrocompatibilità html */
+}
+
+.bilancio-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+    font-size: 0.95rem;
+}
+.bilancio-table th, .bilancio-table td {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+.bilancio-table th {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-color);
+    font-weight: 600;
+}
+.bilancio-table td {
+    color: #cbd5e1;
+}
+.text-green {
+    color: #10b981 !important;
+    font-weight: bold;
+}
+.text-red {
+    color: #ef4444 !important;
+    font-weight: bold;
 }

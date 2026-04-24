@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestione Famiglia</title>
+    <title>Bro Drive</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="theme-macchina">
     <div class="app-container">
         <header>
-            <h1>Gestione Famiglia</h1>
+            <h1>Bro Drive</h1>
             <nav class="main-nav">
                 <button id="nav-macchina" class="nav-btn active">Macchina</button>
                 <button id="nav-spesa" class="nav-btn">Spesa</button>
@@ -123,8 +123,8 @@
                     <h2>Dashboard</h2>
                     <div class="form-row" style="margin-bottom: 1.5rem;">
                         <div class="form-group" style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px; text-align: center;">
-                            <h3 style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.5rem;">Chilometri Previsti</h3>
-                            <p id="stat-km" style="font-size: 1.8rem; font-weight: 700; color: #3b82f6;">0</p>
+                            <h3 style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.5rem;">Km Totali</h3>
+                            <p id="stat-km" style="font-size: 1.8rem; font-weight: 700; color: #3b82f6;">0 Km</p>
                         </div>
                         <div class="form-group" style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px; text-align: center;">
                             <h3 style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.5rem;">Spesa Totale</h3>
@@ -135,7 +135,14 @@
                             <p id="stat-litri" style="font-size: 1.8rem; font-weight: 700; color: #10b981;">0 L</p>
                         </div>
                     </div>
-                    <div class="charts-container">
+
+                    <div class="tabs" style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <button class="tab-btn active" id="btn-dash-singolo" onclick="window.switchDash('singolo')">Singolo</button>
+                        <button class="tab-btn" id="btn-dash-collettivo" onclick="window.switchDash('collettivo')">Famiglia</button>
+                    </div>
+
+                    <div id="dash-singolo" style="display: block;">
+                        <div class="charts-container">
                         <div class="chart-box">
                             <canvas id="chart-km"></canvas>
                         </div>
@@ -148,7 +155,50 @@
                         <div class="chart-box full-width">
                             <canvas id="chart-prenotazioni"></canvas>
                         </div>
+                        <div class="chart-box full-width" style="height: 400px;">
+                            <canvas id="chart-bilancio"></canvas>
+                        </div>
                     </div>
+                    
+                    <div class="glass-card" style="margin-top: 2rem; overflow-x: auto; padding: 1.5rem;">
+                        <h3 style="margin-bottom: 1.5rem; font-size: 1.2rem; color: #cbd5e1; text-align: center;">Resoconto Monetario (€)</h3>
+                        <table class="bilancio-table" id="tabella-bilancio">
+                            <thead>
+                                <tr id="table-header-utenti">
+                                    <th>Dato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr id="table-row-km">
+                                    <td style="text-align: left; font-weight: 600;">Km Percorsi</td>
+                                </tr>
+                                <tr id="table-row-euro">
+                                    <td style="text-align: left; font-weight: 600;">€ Versati</td>
+                                </tr>
+                                <tr id="table-row-scostamento">
+                                    <td style="text-align: left; font-weight: 600;">Bilancio (€)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    </div> <!-- END dash-singolo -->
+
+                    <div id="dash-collettivo" style="display: none;">
+                        <div class="charts-container">
+                            <div class="chart-box">
+                                <canvas id="chart-coll-km"></canvas>
+                            </div>
+                            <div class="chart-box">
+                                <canvas id="chart-coll-spese"></canvas>
+                            </div>
+                            <div class="chart-box">
+                                <canvas id="chart-coll-litri"></canvas>
+                            </div>
+                            <div class="chart-box full-width">
+                                <canvas id="chart-coll-prenotazioni"></canvas>
+                            </div>
+                        </div>
+                    </div> <!-- END dash-collettivo -->
                 </div>
             </section>
 
