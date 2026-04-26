@@ -12,6 +12,67 @@ function saveData() {
     renderAll();
 }
 
+// --- CUSTOM MODALS LOGIC ---
+function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '' }) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('custom-modal-overlay');
+        const titleEl = document.getElementById('custom-modal-title');
+        const messageEl = document.getElementById('custom-modal-message');
+        const inputEl = document.getElementById('custom-modal-input');
+        const cancelBtn = document.getElementById('custom-modal-cancel');
+        const confirmBtn = document.getElementById('custom-modal-confirm');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+
+        // Reset state
+        inputEl.classList.add('hidden');
+        cancelBtn.classList.add('hidden');
+        inputEl.value = '';
+
+        if (type === 'prompt') {
+            inputEl.classList.remove('hidden');
+            inputEl.value = defaultValue;
+            cancelBtn.classList.remove('hidden');
+        } else if (type === 'confirm') {
+            cancelBtn.classList.remove('hidden');
+        }
+
+        overlay.classList.remove('hidden');
+        
+        if (type === 'prompt') {
+            // setTimeout needed to ensure modal is visible before focusing
+            setTimeout(() => inputEl.focus(), 100);
+        }
+
+        const cleanup = () => {
+            overlay.classList.add('hidden');
+            confirmBtn.removeEventListener('click', onConfirm);
+            cancelBtn.removeEventListener('click', onCancel);
+        };
+
+        const onConfirm = () => {
+            cleanup();
+            if (type === 'prompt') resolve(inputEl.value);
+            else resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            if (type === 'prompt') resolve(null);
+            else resolve(false);
+        };
+
+        confirmBtn.addEventListener('click', onConfirm);
+        cancelBtn.addEventListener('click', onCancel);
+    });
+}
+
+window.CustomAlert = (message, title = 'Avviso') => showCustomModal({ title, message, type: 'alert' });
+window.CustomConfirm = (message, title = 'Conferma') => showCustomModal({ title, message, type: 'confirm' });
+window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato') => showCustomModal({ title, message, type: 'prompt', defaultValue });
+
+
 // Navigation & Tabs
 document.getElementById('nav-macchina').addEventListener('click', () => switchSection('sec-macchina', 'nav-macchina'));
 document.getElementById('nav-spesa').addEventListener('click', () => switchSection('sec-spesa', 'nav-spesa'));
@@ -55,7 +116,9 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
     const dataFine = document.getElementById('prenotazione-data-fine').value;
     const oraInizio = document.getElementById('prenotazione-inizio').value;
     const oraFine = document.getElementById('prenotazione-fine').value;
-    const km = parseInt(document.getElementById('prenotazione-km').value);
+    const kmInizio = parseInt(document.getElementById('prenotazione-km-inizio').value) || 0;
+    const kmFine = parseInt(document.getElementById('prenotazione-km-fine').value) || 0;
+    const km = (kmFine >= kmInizio && kmInizio > 0) ? kmFine - kmInizio : 0;
     const motivo = document.getElementById('prenotazione-motivo').value;
     
     // Controlli di validità su Data e Ora
@@ -63,7 +126,7 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
     const endDateTime = new Date(`${dataFine}T${oraFine}`);
 
     if (endDateTime <= startDateTime) {
-        alert("Errore: La data e l'ora di fine devono essere successive a quelle di inizio. Non puoi prenotare nel passato!");
+        await window.CustomAlert("La data e l'ora di fine devono essere successive a quelle di inizio. Non puoi prenotare nel passato!", "Errore Data");
         btnSubmit.textContent = originalText;
         btnSubmit.disabled = false;
         return;
@@ -73,14 +136,7 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
     const minFine = parseInt(oraFine.split(':')[1]);
 
     if (minInizio % 5 !== 0 || minFine % 5 !== 0) {
-        alert("Errore: I minuti dell'orario devono essere multipli di 5 (es. 00, 05, 10, 15...). Usa i controlli del menu a tendina.");
-        btnSubmit.textContent = originalText;
-        btnSubmit.disabled = false;
-        return;
-    }
-    
-    if (!km || km < 1) {
-        alert("Inserisci un numero di Km valido.");
+        await window.CustomAlert("I minuti dell'orario devono essere multipli di 5 (es. 00, 05, 10, 15...). Usa i controlli del menu a tendina.", "Errore Orario");
         btnSubmit.textContent = originalText;
         btnSubmit.disabled = false;
         return;
@@ -94,6 +150,8 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
         dataFine,
         inizio: oraInizio,
         fine: oraFine,
+        kmInizio,
+        kmFine,
         km,
         motivo,
         timestamp: new Date().toLocaleString(),
@@ -116,16 +174,16 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
             });
             const result = await response.json();
             if(result.status === 'success') {
-                alert("Prenotazione salvata e sincronizzata sul calendario!");
+                await window.CustomAlert("Prenotazione salvata e sincronizzata sul calendario!", "Successo");
             } else {
-                alert("Errore remoto: " + result.message);
+                await window.CustomAlert("Errore remoto: " + result.message, "Errore di Sincronizzazione");
             }
         } else {
-            alert("Prenotazione salvata localmente! (Ricordati di inserire l'URL di Apps Script)");
+            await window.CustomAlert("Prenotazione salvata localmente! (Ricordati di inserire l'URL di Apps Script)", "Salvata");
         }
     } catch (err) {
         console.error(err);
-        alert("Errore di rete. Prenotazione salvata solo localmente.");
+        await window.CustomAlert("Errore di rete. Prenotazione salvata solo localmente.", "Attenzione");
     } finally {
         btnSubmit.textContent = originalText;
         btnSubmit.disabled = false;
@@ -135,7 +193,8 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
 async function cancellaPrenotazione(id) {
     const p = STATE.prenotazioni.find(x => x.id === id);
     if(p) {
-        if (!confirm("Sei sicuro di voler cancellare la prenotazione? Questa azione modificherà anche il calendario.")) {
+        const confermato = await window.CustomConfirm("Sei sicuro di voler cancellare la prenotazione? Questa azione modificherà anche il calendario.", "Cancella Prenotazione");
+        if (!confermato) {
             return;
         }
 
@@ -189,10 +248,10 @@ document.getElementById('form-rifornimento').addEventListener('submit', async (e
                 body: JSON.stringify({ action: 'create_rifornimento', ...obj })
             });
         }
-        alert("Rifornimento inserito con successo!");
+        await window.CustomAlert("Rifornimento inserito con successo!", "Successo");
     } catch(err) {
         console.error(err);
-        alert("Rifornimento salvato localmente (errore di rete).");
+        await window.CustomAlert("Rifornimento salvato localmente (errore di rete).", "Attenzione");
     } finally {
         btnSubmit.textContent = originalText;
         btnSubmit.disabled = false;
@@ -234,7 +293,8 @@ document.getElementById('form-spesa').addEventListener('submit', async (e) => {
 
 // Resa globale nello scope window
 window.rimuoviSpesa = async function(id) {
-    if(!confirm("Vuoi davvero eliminare questo prodotto dalla lista della spesa?")) return;
+    const confermato = await window.CustomConfirm("Vuoi davvero eliminare questo prodotto dalla lista della spesa?", "Elimina prodotto");
+    if(!confermato) return;
 
     const s = STATE.spesa.find(x => x.id === id);
     if(s) {
@@ -257,6 +317,62 @@ window.rimuoviSpesa = async function(id) {
 
 window.cancellaPrenotazione = cancellaPrenotazione;
 
+window.modificaPrenotazione = async function(id) {
+    const p = STATE.prenotazioni.find(x => x.id === id);
+    if(!p) return;
+    const newInizio = await window.CustomPrompt("Inserisci il Conteggio Iniziale (km):", p.kmInizio || "", "Modifica Km Iniziali");
+    if (newInizio === null) return;
+    const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali");
+    if (newFine === null) return;
+    
+    p.kmInizio = parseInt(newInizio) || 0;
+    p.kmFine = parseInt(newFine) || 0;
+    p.km = (p.kmFine >= p.kmInizio && p.kmFine > 0) ? p.kmFine - p.kmInizio : 0;
+    
+    saveData();
+    await window.CustomAlert("Modifica avvenuta con successo!", "Completato");
+    
+    if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== "INSERISCI_QUI_IL_TUO_URL_DELLA_WEB_APP") {
+        try {
+            await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'update', id: id, kmInizio: p.kmInizio, kmFine: p.kmFine, km: p.km })
+            });
+        } catch(e) {
+            console.error("Errore aggiornamento:", e);
+        }
+    }
+};
+
+window.modificaRifornimento = async function(id) {
+    const r = STATE.rifornimenti.find(x => x.id === id);
+    if(!r) return;
+    const newImporto = await window.CustomPrompt("Inserisci il nuovo Importo (€):", r.importo, "Modifica Importo");
+    if (newImporto === null) return;
+    const newCosto = await window.CustomPrompt("Inserisci il nuovo Costo al Litro (€/L):", r.costoL, "Modifica Costo");
+    if (newCosto === null) return;
+    
+    r.importo = parseFloat(newImporto.replace(',','.')) || r.importo;
+    r.costoL = parseFloat(newCosto.replace(',','.')) || r.costoL;
+    r.litri = parseFloat((r.importo / r.costoL).toFixed(2));
+    
+    saveData();
+    await window.CustomAlert("Modifica avvenuta con successo!", "Completato");
+    
+    if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== "INSERISCI_QUI_IL_TUO_URL_DELLA_WEB_APP") {
+        try {
+            await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'update_rifornimento', id: id, importo: r.importo, costoL: r.costoL, litri: r.litri })
+            });
+        } catch(e) {
+            console.error("Errore aggiornamento:", e);
+        }
+    }
+};
+
 window.switchDash = function(type) {
     document.getElementById('btn-dash-singolo').classList.remove('active');
     document.getElementById('btn-dash-collettivo').classList.remove('active');
@@ -278,8 +394,9 @@ function renderRegistro() {
         li.className = 'list-item';
         
         let contentHTML = `<div class="list-item-content">
-            <span class="list-item-title">${p.utente} - ${p.km} Km previsti ${p.motivo ? `(Motivo: ${p.motivo})` : ''}</span>
-            <span class="list-item-meta">Dal: ${p.dataInizio || p.data || ''} ore ${p.inizio} - Al: ${p.dataFine || p.data || ''} ore ${p.fine} (Creata il ${p.timestamp})</span>`;
+            <span class="list-item-title">${p.utente} - ${p.km} Km percorsi ${p.motivo ? `(Motivo: ${p.motivo})` : ''}</span>
+            <span class="list-item-meta">Dal: ${p.dataInizio || p.data || ''} ore ${p.inizio} - Al: ${p.dataFine || p.data || ''} ore ${p.fine} (Creata il ${p.timestamp})</span>
+            <span class="list-item-meta">Conteggio: ${p.kmInizio || 0} -> ${p.kmFine || 0}</span>`;
             
         if(p.status === 'cancellata') {
             contentHTML += `<span class="list-item-meta" style="color:var(--danger)">Cancellata il ${p.deletedAt} da ${p.deletedBy}</span>`;
@@ -289,11 +406,29 @@ function renderRegistro() {
         li.innerHTML = contentHTML;
         
         if(p.status === 'attiva') {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit-btn';
+            editBtn.innerHTML = '✏️';
+            editBtn.title = 'Modifica';
+            editBtn.style.background = 'none';
+            editBtn.style.border = 'none';
+            editBtn.style.fontSize = '1.2rem';
+            editBtn.style.cursor = 'pointer';
+            editBtn.style.marginRight = '10px';
+            editBtn.onclick = () => window.modificaPrenotazione(p.id);
+
             const delBtn = document.createElement('button');
             delBtn.className = 'delete-btn';
             delBtn.textContent = 'Annulla';
             delBtn.onclick = () => window.cancellaPrenotazione(p.id);
-            li.appendChild(delBtn);
+
+            const btnContainer = document.createElement('div');
+            btnContainer.style.display = 'flex';
+            btnContainer.style.alignItems = 'center';
+            btnContainer.appendChild(editBtn);
+            btnContainer.appendChild(delBtn);
+
+            li.appendChild(btnContainer);
         }
         
         list.appendChild(li);
@@ -528,8 +663,39 @@ function renderDashboard() {
     });
 }
 
+function renderRegistroRifornimenti() {
+    const list = document.getElementById('lista-rifornimenti');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    const sorted = [...STATE.rifornimenti].sort((a,b) => b.id - a.id);
+    sorted.forEach(r => {
+        const li = document.createElement('li');
+        li.className = 'list-item';
+        
+        li.innerHTML = `<div class="list-item-content">
+            <span class="list-item-title">${r.utente} - ${r.importo}€ (${r.litri}L a ${r.costoL}€/L)</span>
+            <span class="list-item-meta">Data: ${r.data} (Creato il ${r.timestamp})</span>
+        </div>`;
+        
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.innerHTML = '✏️';
+        editBtn.title = 'Modifica';
+        editBtn.style.background = 'none';
+        editBtn.style.border = 'none';
+        editBtn.style.fontSize = '1.2rem';
+        editBtn.style.cursor = 'pointer';
+        editBtn.onclick = () => window.modificaRifornimento(r.id);
+        
+        li.appendChild(editBtn);
+        list.appendChild(li);
+    });
+}
+
 function renderAll() {
     renderRegistro();
+    renderRegistroRifornimenti();
     renderSpesa();
     renderDashboard();
 }
@@ -560,9 +726,27 @@ async function syncWithCloud() {
             console.log("Sincronizzazione completata: dati aggiornati dal Cloud.");
         } catch(e) {
             console.error("Impossibile sincronizzare dal Cloud. Vengono usati i dati locali.", e);
+        } finally {
+            document.getElementById('loading-overlay').classList.add('hidden');
         }
+    } else {
+        document.getElementById('loading-overlay').classList.add('hidden');
     }
 }
 
 // Avviamo la sincronizzazione in background all'apertura dell'app
-syncWithCloud();
+syncWithCloud().then(() => {
+    // Controlliamo se ci sono prenotazioni attive con Km mancanti (inizio o fine)
+    const prenotazioniIncomplete = STATE.prenotazioni.filter(p => 
+        p.status === 'attiva' && (!p.kmInizio || p.kmInizio === 0 || !p.kmFine || p.kmFine === 0)
+    );
+
+    if (prenotazioniIncomplete.length > 0) {
+        // Creiamo un elenco sintetico: Utente - Motivo
+        const dettagli = prenotazioniIncomplete.map(p => `• ${p.utente}: "${p.motivo || 'Senza motivo'}"`).join('\n');
+        
+        setTimeout(() => {
+            window.CustomAlert(`Attenzione, mancano i dati di "Conteggio iniziale" o "Conteggio finale" per:\n\n${dettagli}\n\nRicordatevi di aggiornarli!`, "Promemoria Km Mancanti");
+        }, 500);
+    }
+});

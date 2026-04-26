@@ -11,6 +11,25 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="theme-macchina">
+    <!-- Overlay Caricamento -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Sincronizzazione in corso...</p>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal-overlay" class="custom-modal-overlay hidden">
+        <div class="custom-modal glass-card">
+            <h3 id="custom-modal-title">Avviso</h3>
+            <p id="custom-modal-message">Messaggio</p>
+            <input type="text" id="custom-modal-input" class="hidden">
+            <div class="custom-modal-actions">
+                <button id="custom-modal-cancel" class="delete-btn">Annulla</button>
+                <button id="custom-modal-confirm" class="primary-btn" style="margin-top: 0;">OK</button>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <header>
             <h1>Bro Drive</h1>
@@ -67,13 +86,17 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Km previsti</label>
-                                <input type="number" id="prenotazione-km" placeholder="Es. 15" required min="1">
+                                <label>Conteggio iniziale</label>
+                                <input type="number" id="prenotazione-km-inizio" placeholder="Es. 50000" min="0">
                             </div>
                             <div class="form-group">
-                                <label>Motivo</label>
-                                <input type="text" id="prenotazione-motivo" placeholder="Es. Spesa, Lavoro..." required>
+                                <label>Conteggio finale</label>
+                                <input type="number" id="prenotazione-km-fine" placeholder="Es. 50020" min="0">
                             </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <label>Motivo</label>
+                            <input type="text" id="prenotazione-motivo" placeholder="Es. Spesa, Lavoro..." required>
                         </div>
                         <button type="submit" class="primary-btn">Conferma Prenotazione</button>
                     </form>
@@ -116,6 +139,9 @@
                         </div>
                         <button type="submit" class="primary-btn">Aggiungi Rifornimento</button>
                     </form>
+                    
+                    <h3 style="margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.2rem; color: #cbd5e1;">Registro Rifornimenti</h3>
+                    <ul id="lista-rifornimenti" class="list-container"></ul>
                 </div>
 
                 <!-- Dashboard -->
