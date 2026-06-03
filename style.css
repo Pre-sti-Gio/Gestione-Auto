@@ -150,6 +150,7 @@ h2 {
     font-size: 1.5rem;
     margin-bottom: 1.5rem;
     font-weight: 600;
+    text-align: center;
 }
 
 .form-group {
@@ -431,4 +432,56 @@ select option {
 
 .custom-modal-actions button.hidden {
     display: none;
+}
+
+/* =========================================
+   MEDIA QUERIES PER SMARTPHONE (Responsive)
+   ========================================= */
+@media (max-width: 600px) {
+    body {
+        padding: 1rem 0.5rem;
+    }
+    
+    .glass-card {
+        padding: 1.5rem 1rem; /* Riduce il padding interno della card su mobile */
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    /* Le righe dei form passano in verticale per non schiacciare i campi */
+    .form-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    /* Per le tab in alto: le disponiamo su due righe (2x2) */
+    .tabs {
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        font-size: 0.9rem;
+        padding: 0.6rem 0.4rem;
+        flex: 1 1 45%;
+        min-width: unset;
+    }
+
+    /* Per la Dashboard: permettiamo ai 3 blocchi (Km, Spesa, Litri) di riorganizzarsi */
+    #tab-dashboard .form-row {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    #tab-dashboard .form-row .form-group {
+        flex: 1 1 45%; /* Due elementi per riga, il terzo va sotto */
+        padding: 0.75rem !important;
+        margin-bottom: 0;
+    }
+    
+    #stat-km, #stat-fuel, #stat-litri {
+        font-size: 1.4rem !important; /* Testo leggermente più piccolo */
+    }
 }

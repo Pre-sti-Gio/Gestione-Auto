@@ -750,3 +750,25 @@ syncWithCloud().then(() => {
         }, 500);
     }
 });
+
+// --- FIX PER ORA INIZIO/FINE (Arrotondamento a 5 minuti) ---
+// I browser su Android ignorano spesso l'attributo step="300".
+// Questo script forza l'orario al multiplo di 5 più vicino appena l'utente lo inserisce.
+function arrotondaA5Minuti(inputElement) {
+    if (!inputElement.value) return;
+    let [hours, minutes] = inputElement.value.split(':');
+    if (!minutes) return;
+    
+    minutes = Math.round(parseInt(minutes) / 5) * 5;
+    if (minutes === 60) {
+        minutes = 0;
+        hours = String(parseInt(hours) + 1).padStart(2, '0');
+        if (hours === '24') hours = '00';
+    }
+    inputElement.value = `${hours}:${String(minutes).padStart(2, '0')}`;
+}
+
+const inputInizio = document.getElementById('prenotazione-inizio');
+const inputFine = document.getElementById('prenotazione-fine');
+if (inputInizio) inputInizio.addEventListener('change', function() { arrotondaA5Minuti(this); });
+if (inputFine) inputFine.addEventListener('change', function() { arrotondaA5Minuti(this); });
