@@ -112,6 +112,11 @@
                 <!-- Registro -->
                 <div id="tab-registro" class="tab-content glass-card">
                     <h2>Registro Prenotazioni</h2>
+                    <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+                        <select id="filtro-utente-registro" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: #cbd5e1; font-family: 'Outfit'; font-size: 1rem; width: 60%;">
+                            <option value="Tutti">Tutti</option>
+                        </select>
+                    </div>
                     <ul id="lista-registro" class="list-container"></ul>
                 </div>
 
@@ -147,7 +152,12 @@
                         <button type="submit" class="primary-btn">Aggiungi Rifornimento</button>
                     </form>
                     
-                    <h3 style="margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.2rem; color: #cbd5e1;">Registro Rifornimenti</h3>
+                    <h3 style="margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.2rem; color: #cbd5e1; text-align: center;">Registro Rifornimenti</h3>
+                    <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+                        <select id="filtro-utente-rifornimenti" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: #cbd5e1; font-family: 'Outfit'; font-size: 1rem; width: 60%;">
+                            <option value="Tutti">Tutti</option>
+                        </select>
+                    </div>
                     <ul id="lista-rifornimenti" class="list-container"></ul>
                 </div>
 

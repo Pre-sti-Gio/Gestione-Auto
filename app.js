@@ -402,48 +402,65 @@ function renderRegistro() {
     const list = document.getElementById('lista-registro');
     list.innerHTML = '';
     
-    const sorted = [...STATE.prenotazioni].sort((a,b) => b.id - a.id);
+    const filterSelect = document.getElementById('filtro-utente-registro');
+    const selectedUser = filterSelect ? filterSelect.value : 'Tutti';
+    
+    let filtered = [...STATE.prenotazioni];
+    if (selectedUser && selectedUser !== 'Tutti') {
+        filtered = filtered.filter(p => p.utente === selectedUser);
+    }
+    
+    const sorted = filtered.sort((a,b) => b.id - a.id);
     sorted.forEach(p => {
         const li = document.createElement('li');
         li.className = 'list-item';
         
-        let contentHTML = `<div class="list-item-content">
-            <span class="list-item-title">${p.utente} - ${p.km} Km percorsi ${p.motivo ? `(Motivo: ${p.motivo})` : ''}</span>
-            <span class="list-item-meta">Dal: ${p.dataInizio || p.data || ''} ore ${p.inizio} - Al: ${p.dataFine || p.data || ''} ore ${p.fine} (Creata il ${p.timestamp})</span>
-            <span class="list-item-meta">Conteggio: ${p.kmInizio || 0} -> ${p.kmFine || 0}</span>`;
-            
-        if(p.status === 'cancellata') {
-            contentHTML += `<span class="list-item-meta" style="color:var(--danger)">Cancellata il ${p.deletedAt} da ${p.deletedBy}</span>`;
+        li.style.flexDirection = 'column';
+        li.style.alignItems = 'stretch';
+        
+        let contentHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 700; color: #fff; font-size: 1.1rem;">${p.utente}</span>
+                    <span style="background: #f59e0b; color: #ffffff; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${p.km} Km</span>
+                </div>`;
+                
+        if(p.status === 'attiva') {
+            contentHTML += `
+                <div style="display: flex; align-items: center;">
+                    <button title="Modifica" style="background:none; border:none; font-size:1.2rem; cursor:pointer; margin-right:0.5rem; padding:0;" onclick="window.modificaPrenotazione(${p.id})">✏️</button>
+                    <button class="delete-btn" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="window.cancellaPrenotazione(${p.id})">Annulla</button>
+                </div>`;
         }
+        
         contentHTML += `</div>`;
+            
+        if (p.motivo) {
+            contentHTML += `<div style="color: #cbd5e1; font-weight: 500; font-size: 0.95rem; margin-bottom: 0.5rem;">🎯 ${p.motivo}</div>`;
+        }
+        
+        contentHTML += `
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <div style="color: #cbd5e1; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span>🛫</span> <span>Inizio: ${p.dataInizio || p.data || ''} alle ${p.inizio}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span>🛬</span> <span>Fine: ${p.dataFine || p.data || ''} alle ${p.fine}</span>
+                    </div>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <span>🚗</span> <span>Km: <strong style="color: #cbd5e1;">${p.kmInizio || 0}</strong> ➔ <strong style="color: #cbd5e1;">${p.kmFine || 0}</strong></span>
+                </div>
+            </div>`;
+
+        if(p.status === 'cancellata') {
+            contentHTML += `<div style="color:var(--danger); font-size: 0.8rem; margin-top: 0.25rem;">❌ Cancellata il ${p.deletedAt} da ${p.deletedBy}</div>`;
+        } else {
+            contentHTML += `<div style="color: #ffffff; font-weight: 500; font-size: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">Inserita il ${p.timestamp}</div>`;
+        }
         
         li.innerHTML = contentHTML;
-        
-        if(p.status === 'attiva') {
-            const editBtn = document.createElement('button');
-            editBtn.className = 'edit-btn';
-            editBtn.innerHTML = '✏️';
-            editBtn.title = 'Modifica';
-            editBtn.style.background = 'none';
-            editBtn.style.border = 'none';
-            editBtn.style.fontSize = '1.2rem';
-            editBtn.style.cursor = 'pointer';
-            editBtn.style.marginRight = '10px';
-            editBtn.onclick = () => window.modificaPrenotazione(p.id);
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'delete-btn';
-            delBtn.textContent = 'Annulla';
-            delBtn.onclick = () => window.cancellaPrenotazione(p.id);
-
-            const btnContainer = document.createElement('div');
-            btnContainer.style.display = 'flex';
-            btnContainer.style.alignItems = 'center';
-            btnContainer.appendChild(editBtn);
-            btnContainer.appendChild(delBtn);
-
-            li.appendChild(btnContainer);
-        }
         
         list.appendChild(li);
     });
@@ -748,27 +765,53 @@ function renderRegistroRifornimenti() {
     if (!list) return;
     list.innerHTML = '';
     
-    const sorted = [...STATE.rifornimenti].sort((a,b) => b.id - a.id);
+    const filterSelect = document.getElementById('filtro-utente-rifornimenti');
+    const selectedUser = filterSelect ? filterSelect.value : 'Tutti';
+    
+    let filtered = [...STATE.rifornimenti];
+    if (selectedUser && selectedUser !== 'Tutti') {
+        filtered = filtered.filter(r => r.utente === selectedUser);
+    }
+    
+    const sorted = filtered.sort((a,b) => b.id - a.id);
     sorted.forEach(r => {
         const li = document.createElement('li');
         li.className = 'list-item';
         
-        li.innerHTML = `<div class="list-item-content">
-            <span class="list-item-title">${r.utente} - ${r.importo}€ (${r.litri}L a ${r.costoL}€/L)</span>
-            <span class="list-item-meta">Data: ${r.data} (Creato il ${r.timestamp})</span>
-        </div>`;
+        li.style.flexDirection = 'column';
+        li.style.alignItems = 'stretch';
         
-        const editBtn = document.createElement('button');
-        editBtn.className = 'edit-btn';
-        editBtn.innerHTML = '✏️';
-        editBtn.title = 'Modifica';
-        editBtn.style.background = 'none';
-        editBtn.style.border = 'none';
-        editBtn.style.fontSize = '1.2rem';
-        editBtn.style.cursor = 'pointer';
-        editBtn.onclick = () => window.modificaRifornimento(r.id);
+        let dataFornita = r.data || '';
+        if (dataFornita.includes('T')) {
+            dataFornita = dataFornita.split('T')[0];
+        }
+
+        let contentHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 700; color: #fff; font-size: 1.1rem;">${r.utente}</span>
+                    <span style="background: #10b981; color: #ffffff; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${r.importo} €</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <button title="Modifica" style="background:none; border:none; font-size:1.2rem; cursor:pointer; margin-right:0.5rem; padding:0;" onclick="window.modificaRifornimento(${r.id})">✏️</button>
+                </div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <div style="color: #cbd5e1; font-weight: 500; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <span>⛽</span> <span>${r.litri} L a ${r.costoL} €/L</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <span>📅</span> <span>Data: ${dataFornita}</span>
+                </div>
+            </div>
+            
+            <div style="color: #ffffff; font-weight: 500; font-size: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+                Inserita il ${r.timestamp}
+            </div>
+        `;
         
-        li.appendChild(editBtn);
+        li.innerHTML = contentHTML;
         list.appendChild(li);
     });
 }
@@ -781,6 +824,35 @@ function renderAll() {
 }
 
 // Init
+const initFiltri = () => {
+    const utentiList = ['Mamma', 'Papà', 'Mary', 'Gio', 'Betty'];
+    
+    const filtroReg = document.getElementById('filtro-utente-registro');
+    if (filtroReg) {
+        filtroReg.innerHTML = '<option value="Tutti">Tutti</option>';
+        utentiList.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u;
+            opt.textContent = u;
+            filtroReg.appendChild(opt);
+        });
+        filtroReg.addEventListener('change', renderRegistro);
+    }
+    
+    const filtroRif = document.getElementById('filtro-utente-rifornimenti');
+    if (filtroRif) {
+        filtroRif.innerHTML = '<option value="Tutti">Tutti</option>';
+        utentiList.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u;
+            opt.textContent = u;
+            filtroRif.appendChild(opt);
+        });
+        filtroRif.addEventListener('change', renderRegistroRifornimenti);
+    }
+};
+initFiltri();
+
 renderAll();
 
 async function syncWithCloud() {
