@@ -13,7 +13,7 @@ function saveData() {
 }
 
 // --- CUSTOM MODALS LOGIC ---
-function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '' }) {
+function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '', inputType = 'text' }) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('custom-modal-overlay');
         const titleEl = document.getElementById('custom-modal-title');
@@ -31,6 +31,20 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
         inputEl.value = '';
 
         if (type === 'prompt') {
+            inputEl.type = inputType === 'decimal' ? 'number' : inputType;
+            if (inputType === 'number') {
+                inputEl.setAttribute('inputmode', 'numeric');
+                inputEl.setAttribute('pattern', '[0-9]*');
+                inputEl.removeAttribute('step');
+            } else if (inputType === 'decimal') {
+                inputEl.setAttribute('inputmode', 'decimal');
+                inputEl.removeAttribute('pattern');
+                inputEl.setAttribute('step', 'any');
+            } else {
+                inputEl.removeAttribute('inputmode');
+                inputEl.removeAttribute('pattern');
+                inputEl.removeAttribute('step');
+            }
             inputEl.classList.remove('hidden');
             inputEl.value = defaultValue;
             cancelBtn.classList.remove('hidden');
@@ -70,7 +84,7 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
 
 window.CustomAlert = (message, title = 'Avviso') => showCustomModal({ title, message, type: 'alert' });
 window.CustomConfirm = (message, title = 'Conferma') => showCustomModal({ title, message, type: 'confirm' });
-window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato') => showCustomModal({ title, message, type: 'prompt', defaultValue });
+window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text') => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType });
 
 
 // Navigation & Tabs
@@ -320,9 +334,9 @@ window.cancellaPrenotazione = cancellaPrenotazione;
 window.modificaPrenotazione = async function(id) {
     const p = STATE.prenotazioni.find(x => x.id === id);
     if(!p) return;
-    const newInizio = await window.CustomPrompt("Inserisci il Conteggio Iniziale (km):", p.kmInizio || "", "Modifica Km Iniziali");
+    const newInizio = await window.CustomPrompt("Inserisci il Conteggio Iniziale (km):", p.kmInizio || "", "Modifica Km Iniziali", "number");
     if (newInizio === null) return;
-    const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali");
+    const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali", "number");
     if (newFine === null) return;
     
     p.kmInizio = parseInt(newInizio) || 0;
@@ -348,9 +362,9 @@ window.modificaPrenotazione = async function(id) {
 window.modificaRifornimento = async function(id) {
     const r = STATE.rifornimenti.find(x => x.id === id);
     if(!r) return;
-    const newImporto = await window.CustomPrompt("Inserisci il nuovo Importo (€):", r.importo, "Modifica Importo");
+    const newImporto = await window.CustomPrompt("Inserisci il nuovo Importo (€):", r.importo, "Modifica Importo", "decimal");
     if (newImporto === null) return;
-    const newCosto = await window.CustomPrompt("Inserisci il nuovo Costo al Litro (€/L):", r.costoL, "Modifica Costo");
+    const newCosto = await window.CustomPrompt("Inserisci il nuovo Costo al Litro (€/L):", r.costoL, "Modifica Costo", "decimal");
     if (newCosto === null) return;
     
     r.importo = parseFloat(newImporto.replace(',','.')) || r.importo;
@@ -471,13 +485,79 @@ function renderDashboard() {
     const totalLitri = dataLitri.reduce((a,b) => a+b, 0);
     
     const statKmEl = document.getElementById('stat-km');
-    if(statKmEl) statKmEl.textContent = totalKm + ' Km';
+    if(statKmEl) statKmEl.textContent = totalKm.toLocaleString('it-IT');
     
     const statFuelEl = document.getElementById('stat-fuel');
-    if(statFuelEl) statFuelEl.textContent = totalSpese.toFixed(2) + ' €';
+    if(statFuelEl) statFuelEl.textContent = totalSpese.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
     
     const statLitriEl = document.getElementById('stat-litri');
-    if(statLitriEl) statLitriEl.textContent = totalLitri.toFixed(2) + ' L';
+    if(statLitriEl) statLitriEl.textContent = totalLitri.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' L';
+    
+    // Km Fantasma Logic:
+    let kmFantasma = 0;
+    const prenotazioniValide = STATE.prenotazioni
+        .filter(p => p.status === 'attiva' && p.kmInizio > 0 && p.kmFine > 0)
+        .sort((a, b) => a.kmInizio - b.kmInizio);
+
+    for (let i = 0; i < prenotazioniValide.length - 1; i++) {
+        const prev = prenotazioniValide[i];
+        const next = prenotazioniValide[i + 1];
+        if (next.kmInizio > prev.kmFine) {
+            kmFantasma += (next.kmInizio - prev.kmFine);
+        }
+    }
+
+    const statKmFantasmaEl = document.getElementById('stat-km-fantasma');
+    if(statKmFantasmaEl) statKmFantasmaEl.textContent = kmFantasma.toLocaleString('it-IT');
+    
+    // Odometro Logic: trova minKm (Km In) e maxKm (Km Fin)
+    let maxKm = 0;
+    let minKm = Infinity;
+    let maxKmData = "--/--/----";
+    let minKmData = "--/--/----";
+    
+    STATE.prenotazioni.forEach(p => {
+        if (p.status === 'attiva') {
+            const currentMax = p.kmFine || p.kmInizio || 0;
+            if (currentMax > maxKm) {
+                maxKm = currentMax;
+                maxKmData = p.dataFine || p.data || p.timestamp || "--/--/----";
+            }
+            
+            const currentMin = p.kmInizio || p.kmFine || 0;
+            if (currentMin > 0 && currentMin < minKm) {
+                minKm = currentMin;
+                minKmData = p.dataInizio || p.data || p.timestamp || "--/--/----";
+            }
+        }
+    });
+    
+    if (minKm === Infinity) minKm = 0;
+    const veriKmTotali = maxKm > minKm ? maxKm - minKm : 0;
+
+    const statKmInEl = document.getElementById('stat-km-in');
+    if(statKmInEl) statKmInEl.textContent = minKm.toLocaleString('it-IT');
+    const statKmInDataEl = document.getElementById('stat-km-in-data');
+    if(statKmInDataEl) statKmInDataEl.textContent = minKmData;
+    
+    const statKmFinEl = document.getElementById('stat-km-fin');
+    if(statKmFinEl) statKmFinEl.textContent = maxKm.toLocaleString('it-IT');
+    const statKmFinDataEl = document.getElementById('stat-km-fin-data');
+    if(statKmFinDataEl) statKmFinDataEl.textContent = maxKmData;
+
+    const statKmTotaliVeriEl = document.getElementById('stat-km-totali-veri');
+    if(statKmTotaliVeriEl) statKmTotaliVeriEl.textContent = veriKmTotali.toLocaleString('it-IT');
+
+    // Percentuali
+    const percRegistrati = veriKmTotali > 0 ? ((totalKm / veriKmTotali) * 100).toFixed(1) : 0;
+    const percFantasma = veriKmTotali > 0 ? ((kmFantasma / veriKmTotali) * 100).toFixed(1) : 0;
+    
+    const statKmPercEl = document.getElementById('stat-km-perc');
+    if(statKmPercEl) statKmPercEl.textContent = `(${percRegistrati}%)`;
+    
+    const statKmFantasmaPercEl = document.getElementById('stat-km-fantasma-perc');
+    if(statKmFantasmaPercEl) statKmFantasmaPercEl.textContent = `(${percFantasma}%)`;
+
 
     Chart.defaults.color = '#cbd5e1';
     Chart.defaults.font.family = 'Outfit';
@@ -485,8 +565,8 @@ function renderDashboard() {
     if(charts.km) charts.km.destroy();
     charts.km = new Chart(document.getElementById('chart-km'), {
         type: 'bar',
-        data: { labels: utenti, datasets: [{ label: 'Km Totali', data: dataKm, backgroundColor: '#3b82f6' }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Chilometri per Utente' } } }
+        data: { labels: utenti, datasets: [{ label: 'Km Registrati', data: dataKm, backgroundColor: '#3b82f6' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Km Registrati' } } }
     });
 
     if(charts.spese) charts.spese.destroy();
@@ -557,10 +637,10 @@ function renderDashboard() {
         
         let colorClass = '';
         let sign = '';
-        if (bilancioEuro > 0.5) { // margine
+        if (bilancioEuro > 0.01) {
             colorClass = 'text-green';
             sign = '+';
-        } else if (bilancioEuro < -0.5) {
+        } else if (bilancioEuro < -0.01) {
             colorClass = 'text-red';
         }
         
@@ -637,8 +717,8 @@ function renderDashboard() {
     if(charts.collKm) charts.collKm.destroy();
     charts.collKm = new Chart(document.getElementById('chart-coll-km'), {
         type: 'line',
-        data: { labels: labelsColl, datasets: [{ label: 'Km Totali', data: dataCollKm, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Chilometri' } } }
+        data: { labels: labelsColl, datasets: [{ label: 'Km Registrati', data: dataCollKm, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Andamento Km Registrati' } } }
     });
 
     if(charts.collSpese) charts.collSpese.destroy();
@@ -772,3 +852,55 @@ const inputInizio = document.getElementById('prenotazione-inizio');
 const inputFine = document.getElementById('prenotazione-fine');
 if (inputInizio) inputInizio.addEventListener('change', function() { arrotondaA5Minuti(this); });
 if (inputFine) inputFine.addEventListener('change', function() { arrotondaA5Minuti(this); });
+
+// --- EXPORT CSV LOGIC ---
+const btnExportCsv = document.getElementById('btn-export-csv');
+if (btnExportCsv) {
+    btnExportCsv.addEventListener('click', () => {
+        let csvContent = "";
+        
+        // Prenotazioni
+        csvContent += "--- PRENOTAZIONI ---\n";
+        csvContent += "ID,Utente,Motivo,Data Inizio,Ora Inizio,Data Fine,Ora Fine,Km Inizio,Km Fine,Km Percorsi,Status\n";
+        STATE.prenotazioni.forEach(p => {
+            let row = [p.id, p.utente, `"${p.motivo || ''}"`, p.dataInizio||p.data||'', p.inizio||'', p.dataFine||p.data||'', p.fine||'', p.kmInizio||0, p.kmFine||0, p.km||0, p.status||''].join(",");
+            csvContent += row + "\n";
+        });
+
+        // Rifornimenti
+        csvContent += "\n--- RIFORNIMENTI ---\n";
+        csvContent += "ID,Utente,Data,Importo,Costo al Litro,Litri\n";
+        STATE.rifornimenti.forEach(r => {
+            let row = [r.id, r.utente, r.data||'', r.importo||0, r.costoL||0, r.litri||0].join(",");
+            csvContent += row + "\n";
+        });
+        
+        // Spesa
+        csvContent += "\n--- SPESA ---\n";
+        csvContent += "ID,Utente,Prodotto,Data,Status\n";
+        STATE.spesa.forEach(s => {
+            let row = [s.id, s.utente, `"${s.prodotto || ''}"`, s.data||s.timestamp||'', s.status||''].join(",");
+            csvContent += row + "\n";
+        });
+
+        // Generiamo il nome del file con data e ora correnti
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const filename = `BroDrive_Export_${yyyy}-${mm}-${dd}_${hh}-${min}.csv`;
+
+        // Aggiungiamo il BOM per garantire la corretta lettura in Excel
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    });
+}

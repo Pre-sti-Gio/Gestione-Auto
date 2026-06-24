@@ -481,7 +481,7 @@ select option {
         margin-bottom: 0;
     }
     
-    #stat-km, #stat-fuel, #stat-litri {
-        font-size: 1.4rem !important; /* Testo leggermente più piccolo */
+    #stat-km, #stat-fuel, #stat-litri, #stat-km-fantasma, #stat-km-in, #stat-km-fin, #stat-km-totali-veri {
+        font-size: 1.4rem !important; /* Testo leggermente più piccolo per farceli stare in griglia */
     }
 }
