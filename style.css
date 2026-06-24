@@ -252,16 +252,18 @@ select option {
 }
 
 .delete-btn {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: var(--danger);
+    color: white;
+    border: 1px solid var(--danger);
     padding: 0.5rem 1rem;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
+    font-weight: 600;
 }
 .delete-btn:hover {
-    background: var(--danger);
+    background: #dc2626;
+    border-color: #dc2626;
     color: white;
 }
 
@@ -299,10 +301,10 @@ select option {
     width: 100%;
     border-collapse: collapse;
     text-align: center;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
 }
 .bilancio-table th, .bilancio-table td {
-    padding: 0.75rem;
+    padding: 0.5rem 0.2rem;
     border: 1px solid var(--border-color);
 }
 .bilancio-table th {
