@@ -405,9 +405,16 @@ function renderRegistro() {
     const filterSelect = document.getElementById('filtro-utente-registro');
     const selectedUser = filterSelect ? filterSelect.value : 'Tutti';
     
+    const filterMancanti = document.getElementById('filtro-mancanti-registro');
+    const showOnlyMancanti = filterMancanti ? filterMancanti.checked : false;
+    
     let filtered = [...STATE.prenotazioni];
     if (selectedUser && selectedUser !== 'Tutti') {
         filtered = filtered.filter(p => p.utente === selectedUser);
+    }
+    
+    if (showOnlyMancanti) {
+        filtered = filtered.filter(p => p.status === 'attiva' && (!p.kmInizio || p.kmInizio === 0 || !p.kmFine || p.kmFine === 0));
     }
     
     const sorted = filtered.sort((a,b) => b.id - a.id);
@@ -434,25 +441,25 @@ function renderRegistro() {
         }
         
         contentHTML += `</div>`;
+        contentHTML += `<div style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.6rem;">`;
             
         if (p.motivo) {
-            contentHTML += `<div style="color: #cbd5e1; font-weight: 500; font-size: 0.95rem; margin-bottom: 0.5rem;">🎯 ${p.motivo}</div>`;
+            contentHTML += `<div style="color: #cbd5e1; font-weight: 500; font-size: 0.95rem; display: flex; align-items: flex-start; gap: 0.4rem;">
+                <span>🎯</span> <span>${p.motivo}</span>
+            </div>`;
         }
         
         contentHTML += `
-            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <div style="color: #cbd5e1; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.25rem;">
-                    <div style="display: flex; align-items: center; gap: 0.4rem;">
-                        <span>🛫</span> <span>Inizio: ${p.dataInizio || p.data || ''} alle ${p.inizio}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.4rem;">
-                        <span>🛬</span> <span>Fine: ${p.dataFine || p.data || ''} alle ${p.fine}</span>
-                    </div>
-                </div>
-                <div style="color: #94a3b8; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
-                    <span>🚗</span> <span>Km: <strong style="color: #cbd5e1;">${p.kmInizio || 0}</strong> ➔ <strong style="color: #cbd5e1;">${p.kmFine || 0}</strong></span>
-                </div>
-            </div>`;
+            <div style="color: #cbd5e1; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🟢</span> <span>Inizio: ${p.dataInizio || p.data || ''} alle ${p.inizio}</span>
+            </div>
+            <div style="color: #cbd5e1; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🔴</span> <span>Fine: ${p.dataFine || p.data || ''} alle ${p.fine}</span>
+            </div>
+            <div style="color: #94a3b8; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🚗</span> <span>Km: <strong style="color: #cbd5e1;">${p.kmInizio || 0}</strong> ➔ <strong style="color: #cbd5e1;">${p.kmFine || 0}</strong></span>
+            </div>
+        </div>`;
 
         if(p.status === 'cancellata') {
             contentHTML += `<div style="color:var(--danger); font-size: 0.8rem; margin-top: 0.25rem;">❌ Cancellata il ${p.deletedAt} da ${p.deletedBy}</div>`;
@@ -620,16 +627,10 @@ function renderDashboard() {
     
     // Calcoliamo il bilancio per ogni utente
     const dataBilancioKm = [];
-    const tableHeader = document.getElementById('table-header-utenti');
-    const tableRowKm = document.getElementById('table-row-km');
-    const tableRowEuro = document.getElementById('table-row-euro');
-    const tableRowScostamento = document.getElementById('table-row-scostamento');
+    const tableBody = document.getElementById('table-body-utenti');
     
     // Resettiamo le righe
-    tableHeader.innerHTML = '<th>Dato</th>';
-    tableRowKm.innerHTML = '<td style="text-align: left; font-weight: 600;">Km Percorsi</td>';
-    tableRowEuro.innerHTML = '<td style="text-align: left; font-weight: 600;">€ Versati</td>';
-    tableRowScostamento.innerHTML = '<td style="text-align: left; font-weight: 600;">Bilancio (€)</td>';
+    if (tableBody) tableBody.innerHTML = '';
 
     utenti.forEach(u => {
         const kmGuidati = STATE.prenotazioni.filter(p => p.utente === u && p.status === 'attiva').reduce((sum, p) => sum + p.km, 0);
@@ -647,11 +648,6 @@ function renderDashboard() {
         // Scostamento = quanto ha versato - quanto avrebbe dovuto versare
         const bilancioEuro = euroVersati - debitoEuro;
         
-        // Popoliamo la tabella
-        tableHeader.innerHTML += `<th>${u}</th>`;
-        tableRowKm.innerHTML += `<td>${kmGuidati}</td>`;
-        tableRowEuro.innerHTML += `<td>${euroVersati.toFixed(2)} €</td>`;
-        
         let colorClass = '';
         let sign = '';
         if (bilancioEuro > 0.01) {
@@ -661,7 +657,17 @@ function renderDashboard() {
             colorClass = 'text-red';
         }
         
-        tableRowScostamento.innerHTML += `<td class="${colorClass}">${sign}${bilancioEuro.toFixed(2)} €</td>`;
+        // Popoliamo la tabella in verticale
+        if (tableBody) {
+            tableBody.innerHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="font-weight: 700; color: #fff;">${u}</td>
+                    <td>${kmGuidati}</td>
+                    <td>${euroVersati.toFixed(2)} €</td>
+                    <td class="${colorClass}" style="font-weight: 700;">${sign}${bilancioEuro.toFixed(2)} €</td>
+                </tr>
+            `;
+        }
     });
 
     // Assegnazione colori condizionale per grafico
@@ -837,6 +843,11 @@ const initFiltri = () => {
             filtroReg.appendChild(opt);
         });
         filtroReg.addEventListener('change', renderRegistro);
+    }
+    
+    const filtroMancantiReg = document.getElementById('filtro-mancanti-registro');
+    if (filtroMancantiReg) {
+        filtroMancantiReg.addEventListener('change', renderRegistro);
     }
     
     const filtroRif = document.getElementById('filtro-utente-rifornimenti');
