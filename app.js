@@ -1062,13 +1062,20 @@ window.captureScanner = async function() {
         const cropWidth = guideRect.width * scaleX;
         const cropHeight = guideRect.height * scaleY;
         
-        canvas.width = cropWidth;
-        canvas.height = cropHeight;
+        // Ottimizzazione per dispositivi mobili: non inviare immagini enormi
+        const MAX_WIDTH = 800;
+        let scaleDown = 1;
+        if (cropWidth > MAX_WIDTH) {
+            scaleDown = MAX_WIDTH / cropWidth;
+        }
         
-        // Disegna solo la porzione interessata
-        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        canvas.width = cropWidth * scaleDown;
+        canvas.height = cropHeight * scaleDown;
         
-        const imageDataUrl = canvas.toDataURL('image/jpeg');
+        // Disegna la porzione interessata ridimensionata
+        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+        
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8); // Qualità 80% per ridurre peso
         
         // OCR tramite Tesseract
         if (typeof Tesseract === 'undefined') {
@@ -1089,9 +1096,13 @@ window.captureScanner = async function() {
             }
         });
         
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000));
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000);
+        });
         
         const result = await Promise.race([ocrPromise, timeoutPromise]);
+        clearTimeout(timeoutId); // Evita unhandled rejection
         
         const text = result.data.text;
         console.log("OCR Result:", text);
@@ -1153,9 +1164,13 @@ window.handleFileUpload = async function(event) {
             }
         });
 
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000));
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000);
+        });
         
         const result = await Promise.race([ocrPromise, timeoutPromise]);
+        clearTimeout(timeoutId);
         
         const text = result.data.text;
         console.log("OCR Gallery Result:", text);
