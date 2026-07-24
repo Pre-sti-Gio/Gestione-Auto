@@ -13,12 +13,15 @@ function saveData() {
 }
 
 // --- CUSTOM MODALS LOGIC ---
-function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '', inputType = 'text' }) {
+function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '', inputType = 'text', showCamera = false }) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('custom-modal-overlay');
         const titleEl = document.getElementById('custom-modal-title');
         const messageEl = document.getElementById('custom-modal-message');
+        const inputGroup = document.getElementById('custom-modal-input-group');
         const inputEl = document.getElementById('custom-modal-input');
+        const cameraBtn = document.getElementById('custom-modal-camera-btn');
+        const galleryBtn = document.getElementById('custom-modal-gallery-btn');
         const cancelBtn = document.getElementById('custom-modal-cancel');
         const confirmBtn = document.getElementById('custom-modal-confirm');
 
@@ -26,7 +29,9 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
         messageEl.textContent = message;
 
         // Reset state
-        inputEl.classList.add('hidden');
+        inputGroup.classList.add('hidden');
+        cameraBtn.classList.add('hidden');
+        galleryBtn.classList.add('hidden');
         cancelBtn.classList.add('hidden');
         inputEl.value = '';
 
@@ -45,7 +50,13 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
                 inputEl.removeAttribute('pattern');
                 inputEl.removeAttribute('step');
             }
-            inputEl.classList.remove('hidden');
+            
+            if (showCamera) {
+                cameraBtn.classList.remove('hidden');
+                galleryBtn.classList.remove('hidden');
+            }
+            
+            inputGroup.classList.remove('hidden');
             inputEl.value = defaultValue;
             cancelBtn.classList.remove('hidden');
         } else if (type === 'confirm') {
@@ -84,7 +95,7 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
 
 window.CustomAlert = (message, title = 'Avviso') => showCustomModal({ title, message, type: 'alert' });
 window.CustomConfirm = (message, title = 'Conferma') => showCustomModal({ title, message, type: 'confirm' });
-window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text') => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType });
+window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text', showCamera = false) => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType, showCamera });
 
 
 // Navigation & Tabs
@@ -334,9 +345,9 @@ window.cancellaPrenotazione = cancellaPrenotazione;
 window.modificaPrenotazione = async function(id) {
     const p = STATE.prenotazioni.find(x => x.id === id);
     if(!p) return;
-    const newInizio = await window.CustomPrompt("Inserisci il Conteggio Iniziale (km):", p.kmInizio || "", "Modifica Km Iniziali", "number");
+    const newInizio = await window.CustomPrompt("Inserisci il Conteggio Iniziale (km):", p.kmInizio || "", "Modifica Km Iniziali", "number", true);
     if (newInizio === null) return;
-    const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali", "number");
+    const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali", "number", true);
     if (newFine === null) return;
     
     p.kmInizio = parseInt(newInizio) || 0;
@@ -1075,7 +1086,7 @@ window.captureScanner = async function() {
         const numbersMatch = text.match(/\d+/g);
         if (numbersMatch) {
             const numStr = numbersMatch.join(''); // Unisce se ci sono spazi in mezzo (es "100 690")
-            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : 'prenotazione-km-fine';
+            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
             document.getElementById(inputId).value = parseInt(numStr, 10);
             window.closeScanner();
         } else {
@@ -1085,6 +1096,59 @@ window.captureScanner = async function() {
         console.error("OCR Error:", err);
         window.CustomAlert("Errore durante la lettura dell'immagine.", "Errore OCR");
     } finally {
+        loading.classList.add('hidden');
+    }
+};
+
+window.uploadScanner = function(target) {
+    currentScannerTarget = target;
+    const fileInput = document.getElementById('scanner-file-upload');
+    fileInput.click();
+};
+
+window.handleFileUpload = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Resetta l'input per permettere di ricaricare lo stesso file
+    event.target.value = '';
+    
+    const loading = document.getElementById('loading-overlay');
+    loading.querySelector('p').textContent = 'Lettura immagine in corso...';
+    loading.classList.remove('hidden');
+    
+    try {
+        if (typeof Tesseract === 'undefined') {
+            throw new Error("Tesseract.js non caricato.");
+        }
+        
+        const result = await Tesseract.recognize(file, 'ita', {
+            logger: m => console.log(m)
+        });
+        
+        const text = result.data.text;
+        console.log("OCR Gallery Result:", text);
+        
+        const numbersMatch = text.match(/\d+/g);
+        if (numbersMatch) {
+            // Prendiamo il numero più lungo trovato, solitamente i Km sono 5-6 cifre
+            let bestNumber = "";
+            for (const n of numbersMatch) {
+                if (n.length > bestNumber.length) {
+                    bestNumber = n;
+                }
+            }
+            
+            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
+            document.getElementById(inputId).value = parseInt(bestNumber, 10);
+        } else {
+            window.CustomAlert("Non sono riuscito a trovare nessun numero nella foto.", "Errore Lettura");
+        }
+    } catch(err) {
+        console.error("OCR Gallery Error:", err);
+        window.CustomAlert("Errore durante l'elaborazione dell'immagine.", "Errore OCR");
+    } finally {
+        loading.querySelector('p').textContent = 'Sincronizzazione in corso...';
         loading.classList.add('hidden');
     }
 };

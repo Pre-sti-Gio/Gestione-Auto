@@ -31,7 +31,13 @@
         <div class="custom-modal glass-card">
             <h3 id="custom-modal-title">Avviso</h3>
             <p id="custom-modal-message">Messaggio</p>
-            <input type="text" id="custom-modal-input" class="hidden">
+            <div id="custom-modal-input-group" class="input-with-btn hidden" style="margin-bottom: 1.5rem;">
+                <input type="text" id="custom-modal-input" style="margin-bottom: 0;">
+                <button type="button" id="custom-modal-camera-btn" class="btn-scan-cam hidden" onclick="window.openScanner('custom-modal-input')" title="Scatta Foto">📸</button>
+                <button type="button" id="custom-modal-gallery-btn" class="btn-scan-cam hidden" onclick="window.uploadScanner('custom-modal-input')" title="Allega Galleria">📎</button>
+            </div>
+            <!-- File input hidden per la galleria -->
+            <input type="file" id="scanner-file-upload" accept="image/*" class="hidden" onchange="window.handleFileUpload(event)">
             <div class="custom-modal-actions">
                 <button id="custom-modal-cancel" class="delete-btn">Annulla</button>
                 <button id="custom-modal-confirm" class="primary-btn" style="margin-top: 0;">OK</button>

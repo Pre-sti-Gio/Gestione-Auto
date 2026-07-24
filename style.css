@@ -418,8 +418,8 @@ select option {
     font-size: 1.2rem;
 }
 
-.custom-modal input.hidden {
-    display: none;
+.custom-modal .hidden {
+    display: none !important;
 }
 
 .custom-modal-actions {
