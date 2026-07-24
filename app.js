@@ -1076,7 +1076,15 @@ window.captureScanner = async function() {
         }
         
         const result = await Tesseract.recognize(imageDataUrl, 'ita', {
-            logger: m => console.log(m)
+            logger: m => {
+                console.log(m);
+                const loadingText = document.querySelector('#scanner-loading p');
+                if (m.status === 'recognizing text') {
+                    loadingText.textContent = `Scansione in corso... ${Math.round(m.progress * 100)}%`;
+                } else if (m.status.includes('loading') || m.status.includes('downloading')) {
+                    loadingText.textContent = 'Caricamento AI... (solo la prima volta)';
+                }
+            }
         });
         
         const text = result.data.text;
@@ -1090,13 +1098,16 @@ window.captureScanner = async function() {
             document.getElementById(inputId).value = parseInt(numStr, 10);
             window.closeScanner();
         } else {
+            window.closeScanner();
             window.CustomAlert("Non sono riuscito a leggere un numero valido. Riprova inquadrando meglio i Km.", "Errore Lettura");
         }
     } catch(err) {
         console.error("OCR Error:", err);
+        window.closeScanner();
         window.CustomAlert("Errore durante la lettura dell'immagine.", "Errore OCR");
     } finally {
         loading.classList.add('hidden');
+        document.querySelector('#scanner-loading p').textContent = 'Lettura in corso...'; // reset text
     }
 };
 
@@ -1123,7 +1134,15 @@ window.handleFileUpload = async function(event) {
         }
         
         const result = await Tesseract.recognize(file, 'ita', {
-            logger: m => console.log(m)
+            logger: m => {
+                console.log(m);
+                const loadingText = document.querySelector('#loading-overlay p');
+                if (m.status === 'recognizing text') {
+                    loadingText.textContent = `Scansione in corso... ${Math.round(m.progress * 100)}%`;
+                } else if (m.status.includes('loading') || m.status.includes('downloading')) {
+                    loadingText.textContent = 'Caricamento AI... (solo la prima volta)';
+                }
+            }
         });
         
         const text = result.data.text;
@@ -1148,7 +1167,7 @@ window.handleFileUpload = async function(event) {
         console.error("OCR Gallery Error:", err);
         window.CustomAlert("Errore durante l'elaborazione dell'immagine.", "Errore OCR");
     } finally {
-        loading.querySelector('p').textContent = 'Sincronizzazione in corso...';
+        loading.querySelector('p').textContent = 'Sincronizzazione in corso...'; // reset
         loading.classList.add('hidden');
     }
 };
