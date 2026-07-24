@@ -1080,9 +1080,9 @@ window.captureScanner = async function() {
                 console.log(m);
                 const loadingText = document.querySelector('#scanner-loading p');
                 if (m.status === 'recognizing text') {
-                    loadingText.textContent = `Scansione in corso... ${Math.round(m.progress * 100)}%`;
-                } else if (m.status.includes('loading') || m.status.includes('downloading')) {
-                    loadingText.textContent = 'Caricamento AI... (solo la prima volta)';
+                    loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
+                } else {
+                    loadingText.textContent = `AI: ${m.status}`;
                 }
             }
         });
@@ -1138,9 +1138,9 @@ window.handleFileUpload = async function(event) {
                 console.log(m);
                 const loadingText = document.querySelector('#loading-overlay p');
                 if (m.status === 'recognizing text') {
-                    loadingText.textContent = `Scansione in corso... ${Math.round(m.progress * 100)}%`;
-                } else if (m.status.includes('loading') || m.status.includes('downloading')) {
-                    loadingText.textContent = 'Caricamento AI... (solo la prima volta)';
+                    loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
+                } else {
+                    loadingText.textContent = `AI: ${m.status}`;
                 }
             }
         });
