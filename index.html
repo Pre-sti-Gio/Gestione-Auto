@@ -16,6 +16,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- OCR Library -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body class="theme-macchina">
     <!-- Overlay Caricamento -->
@@ -34,6 +36,26 @@
                 <button id="custom-modal-cancel" class="delete-btn">Annulla</button>
                 <button id="custom-modal-confirm" class="primary-btn" style="margin-top: 0;">OK</button>
             </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- OCR Scanner Modal -->
+    <div id="scanner-modal-overlay" class="custom-modal-overlay hidden" style="z-index: 10001; padding: 0; background: #000;">
+        <div class="scanner-container">
+            <video id="scanner-video" autoplay playsinline></video>
+            <div class="scanner-overlay">
+                <div class="scanner-guide" id="scanner-guide-box"></div>
+            </div>
+            <div class="scanner-actions">
+                <button type="button" class="delete-btn" onclick="window.closeScanner()">Annulla</button>
+                <button type="button" class="primary-btn" onclick="window.captureScanner()" style="margin-top: 0;">Scatta</button>
+            </div>
+            <div id="scanner-loading" class="scanner-loading hidden">
+                <div class="spinner"></div>
+                <p>Lettura in corso...</p>
+            </div>
+            <canvas id="scanner-canvas" class="hidden"></canvas>
         </div>
     </div>
 
@@ -94,11 +116,17 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Conteggio iniziale</label>
-                                <input type="number" id="prenotazione-km-inizio" placeholder="Es. 50000" min="0" inputmode="numeric" pattern="[0-9]*">
+                                <div class="input-with-btn">
+                                    <input type="number" id="prenotazione-km-inizio" placeholder="Es. 50000" min="0" inputmode="numeric" pattern="[0-9]*">
+                                    <button type="button" class="btn-scan-cam" onclick="window.openScanner('inizio')" title="Scansiona Km">📸</button>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Conteggio finale</label>
-                                <input type="number" id="prenotazione-km-fine" placeholder="Es. 50020" min="0" inputmode="numeric" pattern="[0-9]*">
+                                <div class="input-with-btn">
+                                    <input type="number" id="prenotazione-km-fine" placeholder="Es. 50020" min="0" inputmode="numeric" pattern="[0-9]*">
+                                    <button type="button" class="btn-scan-cam" onclick="window.openScanner('fine')" title="Scansiona Km">📸</button>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group" style="margin-bottom: 1.25rem;">

@@ -987,3 +987,104 @@ if (btnExportCsv) {
         URL.revokeObjectURL(url);
     });
 }
+
+// --- OCR SCANNER LOGIC ---
+let scannerStream = null;
+let currentScannerTarget = null; // 'inizio' or 'fine'
+
+window.openScanner = async function(target) {
+    currentScannerTarget = target;
+    const overlay = document.getElementById('scanner-modal-overlay');
+    const video = document.getElementById('scanner-video');
+    
+    overlay.classList.remove('hidden');
+    
+    try {
+        scannerStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false
+        });
+        video.srcObject = scannerStream;
+    } catch (err) {
+        console.error("Camera error:", err);
+        window.CustomAlert("Impossibile accedere alla fotocamera. Controlla i permessi o assicurati di usare HTTPS/localhost.", "Errore Fotocamera");
+        window.closeScanner();
+    }
+};
+
+window.closeScanner = function() {
+    const overlay = document.getElementById('scanner-modal-overlay');
+    const video = document.getElementById('scanner-video');
+    overlay.classList.add('hidden');
+    
+    if (scannerStream) {
+        scannerStream.getTracks().forEach(track => track.stop());
+        scannerStream = null;
+    }
+    video.srcObject = null;
+};
+
+window.captureScanner = async function() {
+    if (!scannerStream) return;
+    
+    const video = document.getElementById('scanner-video');
+    const canvas = document.getElementById('scanner-canvas');
+    const ctx = canvas.getContext('2d');
+    const guideBox = document.getElementById('scanner-guide-box');
+    const loading = document.getElementById('scanner-loading');
+    
+    // Mostra caricamento
+    loading.classList.remove('hidden');
+    
+    try {
+        // Calcola dimensioni e posizione del guide box rispetto al video
+        const videoRect = video.getBoundingClientRect();
+        const guideRect = guideBox.getBoundingClientRect();
+        
+        // Rapporto tra dimensione reale video e dimensione CSS
+        const scaleX = video.videoWidth / videoRect.width;
+        const scaleY = video.videoHeight / videoRect.height;
+        
+        // coordinate ritaglio
+        const cropX = (guideRect.left - videoRect.left) * scaleX;
+        const cropY = (guideRect.top - videoRect.top) * scaleY;
+        const cropWidth = guideRect.width * scaleX;
+        const cropHeight = guideRect.height * scaleY;
+        
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        
+        // Disegna solo la porzione interessata
+        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        
+        const imageDataUrl = canvas.toDataURL('image/jpeg');
+        
+        // OCR tramite Tesseract
+        if (typeof Tesseract === 'undefined') {
+            throw new Error("Tesseract.js non caricato.");
+        }
+        
+        const result = await Tesseract.recognize(imageDataUrl, 'ita', {
+            logger: m => console.log(m)
+        });
+        
+        const text = result.data.text;
+        console.log("OCR Result:", text);
+        
+        // Estrai solo i numeri
+        const numbersMatch = text.match(/\d+/g);
+        if (numbersMatch) {
+            const numStr = numbersMatch.join(''); // Unisce se ci sono spazi in mezzo (es "100 690")
+            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : 'prenotazione-km-fine';
+            document.getElementById(inputId).value = parseInt(numStr, 10);
+            window.closeScanner();
+        } else {
+            window.CustomAlert("Non sono riuscito a leggere un numero valido. Riprova inquadrando meglio i Km.", "Errore Lettura");
+        }
+    } catch(err) {
+        console.error("OCR Error:", err);
+        window.CustomAlert("Errore durante la lettura dell'immagine.", "Errore OCR");
+    } finally {
+        loading.classList.add('hidden');
+    }
+};
