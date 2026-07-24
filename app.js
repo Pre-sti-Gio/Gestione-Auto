@@ -1075,10 +1075,12 @@ window.captureScanner = async function() {
             throw new Error("Tesseract.js non caricato.");
         }
         
-        const result = await Tesseract.recognize(imageDataUrl, 'ita', {
+        const loadingText = document.querySelector('#scanner-loading p');
+        loadingText.textContent = "Avvio Motore IA...";
+
+        const ocrPromise = Tesseract.recognize(imageDataUrl, 'ita', {
             logger: m => {
                 console.log(m);
-                const loadingText = document.querySelector('#scanner-loading p');
                 if (m.status === 'recognizing text') {
                     loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
                 } else {
@@ -1086,6 +1088,10 @@ window.captureScanner = async function() {
                 }
             }
         });
+        
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000));
+        
+        const result = await Promise.race([ocrPromise, timeoutPromise]);
         
         const text = result.data.text;
         console.log("OCR Result:", text);
@@ -1133,10 +1139,12 @@ window.handleFileUpload = async function(event) {
             throw new Error("Tesseract.js non caricato.");
         }
         
-        const result = await Tesseract.recognize(file, 'ita', {
+        const loadingText = document.querySelector('#loading-overlay p');
+        loadingText.textContent = "Avvio Motore IA...";
+
+        const ocrPromise = Tesseract.recognize(file, 'ita', {
             logger: m => {
                 console.log(m);
-                const loadingText = document.querySelector('#loading-overlay p');
                 if (m.status === 'recognizing text') {
                     loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
                 } else {
@@ -1144,6 +1152,10 @@ window.handleFileUpload = async function(event) {
                 }
             }
         });
+
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000));
+        
+        const result = await Promise.race([ocrPromise, timeoutPromise]);
         
         const text = result.data.text;
         console.log("OCR Gallery Result:", text);
