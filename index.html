@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- OCR Library -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -51,15 +51,15 @@
         <div class="scanner-container">
             <video id="scanner-video" autoplay playsinline></video>
             <div class="scanner-overlay">
+                <p style="position: absolute; top: 15%; width: 100%; text-align: center; color: white; font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none;">Inquadra il cruscotto...</p>
                 <div class="scanner-guide" id="scanner-guide-box"></div>
             </div>
-            <div class="scanner-actions">
-                <button type="button" class="delete-btn" onclick="window.closeScanner()">Annulla</button>
-                <button type="button" class="primary-btn" onclick="window.captureScanner()" style="margin-top: 0;">Scatta</button>
+            <div class="scanner-actions" style="justify-content: center;">
+                <button type="button" class="delete-btn" onclick="window.closeScanner()" style="max-width: 200px;">Annulla</button>
             </div>
             <div id="scanner-loading" class="scanner-loading hidden">
                 <div class="spinner"></div>
-                <p>Lettura in corso...</p>
+                <p>Elaborazione...</p>
             </div>
             <canvas id="scanner-canvas" class="hidden"></canvas>
         </div>
@@ -329,6 +329,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js?v=7"></script>
+    <script src="app.js?v=8"></script>
 </body>
 </html>

@@ -1001,14 +1001,19 @@ if (btnExportCsv) {
 
 // --- OCR SCANNER LOGIC ---
 let scannerStream = null;
-let currentScannerTarget = null; // 'inizio' or 'fine'
+let currentScannerTarget = null;
+let scanInterval = null;
+let isProcessingFrame = false;
 
 window.openScanner = async function(target) {
     currentScannerTarget = target;
     const overlay = document.getElementById('scanner-modal-overlay');
     const video = document.getElementById('scanner-video');
+    const loadingText = document.querySelector('#scanner-loading p');
+    const loadingOverlay = document.getElementById('scanner-loading');
     
     overlay.classList.remove('hidden');
+    loadingOverlay.classList.add('hidden'); // Assicuriamoci che non copra il video all'avvio
     
     try {
         scannerStream = await navigator.mediaDevices.getUserMedia({
@@ -1016,9 +1021,18 @@ window.openScanner = async function(target) {
             audio: false
         });
         video.srcObject = scannerStream;
+        
+        // Avvia il loop di scansione continua
+        isProcessingFrame = false;
+        scanInterval = setInterval(() => {
+            if (!isProcessingFrame && scannerStream) {
+                processScannerFrame();
+            }
+        }, 1500); // 1.5 secondi per frame per non sovraccaricare il telefono
+        
     } catch (err) {
         console.error("Camera error:", err);
-        window.CustomAlert("Impossibile accedere alla fotocamera. Controlla i permessi o assicurati di usare HTTPS/localhost.", "Errore Fotocamera");
+        window.CustomAlert("Impossibile accedere alla fotocamera. Controlla i permessi o assicurati di usare HTTPS.", "Errore Fotocamera");
         window.closeScanner();
     }
 };
@@ -1026,6 +1040,12 @@ window.openScanner = async function(target) {
 window.closeScanner = function() {
     const overlay = document.getElementById('scanner-modal-overlay');
     const video = document.getElementById('scanner-video');
+    
+    if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+    }
+    
     overlay.classList.add('hidden');
     
     if (scannerStream) {
@@ -1035,35 +1055,30 @@ window.closeScanner = function() {
     video.srcObject = null;
 };
 
-window.captureScanner = async function() {
+async function processScannerFrame() {
     if (!scannerStream) return;
-    
     const video = document.getElementById('scanner-video');
     const canvas = document.getElementById('scanner-canvas');
-    const ctx = canvas.getContext('2d');
     const guideBox = document.getElementById('scanner-guide-box');
-    const loading = document.getElementById('scanner-loading');
     
-    // Mostra caricamento
-    loading.classList.remove('hidden');
+    if (!video.videoWidth) return; // Video non ancora pronto
+    
+    isProcessingFrame = true;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
     try {
-        // Calcola dimensioni e posizione del guide box rispetto al video
         const videoRect = video.getBoundingClientRect();
         const guideRect = guideBox.getBoundingClientRect();
         
-        // Rapporto tra dimensione reale video e dimensione CSS
         const scaleX = video.videoWidth / videoRect.width;
         const scaleY = video.videoHeight / videoRect.height;
         
-        // coordinate ritaglio
         const cropX = (guideRect.left - videoRect.left) * scaleX;
         const cropY = (guideRect.top - videoRect.top) * scaleY;
         const cropWidth = guideRect.width * scaleX;
         const cropHeight = guideRect.height * scaleY;
         
-        // Ottimizzazione per dispositivi mobili: non inviare immagini enormi
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 600;
         let scaleDown = 1;
         if (cropWidth > MAX_WIDTH) {
             scaleDown = MAX_WIDTH / cropWidth;
@@ -1072,61 +1087,86 @@ window.captureScanner = async function() {
         canvas.width = cropWidth * scaleDown;
         canvas.height = cropHeight * scaleDown;
         
-        // Disegna la porzione interessata ridimensionata
         ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
         
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8); // Qualità 80% per ridurre peso
+        // --- FILTRO OTTICO ALTO CONTRASTO (Testo rosso/arancio su nero -> Testo nero su bianco) ---
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i+1], b = data[i+2];
+            // Se i pixel sono caldi/luminosi (testo cruscotto), li facciamo neri, altrimenti bianchi (sfondo nero -> bianco)
+            // Questo aiuta tantissimo Tesseract
+            const isWarmAndBright = (r > 100 && r > b + 20); 
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            if (isWarmAndBright || lum > 100) {
+                // E' il testo! Facciamolo nero
+                data[i] = data[i+1] = data[i+2] = 0;
+            } else {
+                // E' lo sfondo! Facciamolo bianco
+                data[i] = data[i+1] = data[i+2] = 255;
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        // -----------------------------------------------------------------------------------------
         
-        // OCR tramite Tesseract
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        
         if (typeof Tesseract === 'undefined') {
             throw new Error("Tesseract.js non caricato.");
         }
         
-        const loadingText = document.querySelector('#scanner-loading p');
-        loadingText.textContent = "Avvio Motore IA...";
-
-        const ocrPromise = Tesseract.recognize(imageDataUrl, 'ita', {
-            logger: m => {
-                console.log(m);
-                if (m.status === 'recognizing text') {
-                    loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
-                } else {
-                    loadingText.textContent = `AI: ${m.status}`;
-                }
-            }
-        });
-        
+        // Timeout breve per i singoli frame in modo da non bloccare il loop
+        const ocrPromise = Tesseract.recognize(imageDataUrl, 'ita');
         let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000);
+            timeoutId = setTimeout(() => reject(new Error("Timeout frame")), 3000);
         });
         
-        const result = await Promise.race([ocrPromise, timeoutPromise]);
-        clearTimeout(timeoutId); // Evita unhandled rejection
+        let result;
+        try {
+            result = await Promise.race([ocrPromise, timeoutPromise]);
+            clearTimeout(timeoutId);
+        } catch(e) {
+            clearTimeout(timeoutId);
+            isProcessingFrame = false;
+            return; // ignoriamo i frame lenti e passiamo al prossimo
+        }
+        
+        // Se l'utente ha chiuso lo scanner (Annulla) mentre l'IA stava pensando, interrompiamo.
+        if (!scanInterval) {
+            isProcessingFrame = false;
+            return;
+        }
         
         const text = result.data.text;
-        console.log("OCR Result:", text);
         
-        // Estrai solo i numeri
         const numbersMatch = text.match(/\d+/g);
         if (numbersMatch) {
-            const numStr = numbersMatch.join(''); // Unisce se ci sono spazi in mezzo (es "100 690")
-            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
-            document.getElementById(inputId).value = parseInt(numStr, 10);
-            window.closeScanner();
-        } else {
-            window.closeScanner();
-            window.CustomAlert("Non sono riuscito a leggere un numero valido. Riprova inquadrando meglio i Km.", "Errore Lettura");
+            let bestNumber = "";
+            for (const n of numbersMatch) {
+                if (n.length > bestNumber.length) {
+                    bestNumber = n;
+                }
+            }
+            
+            // I chilometri solitamente hanno 5 o 6 cifre (raramente 4 su macchine vecchissime)
+            if (bestNumber.length >= 4 && bestNumber.length <= 6) {
+                // TROVATO!
+                if ("vibrate" in navigator) navigator.vibrate(200); // Feedback fisico
+                
+                const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
+                document.getElementById(inputId).value = parseInt(bestNumber, 10);
+                window.closeScanner();
+            }
         }
     } catch(err) {
-        console.error("OCR Error:", err);
-        window.closeScanner();
-        window.CustomAlert("Errore durante la lettura dell'immagine.", "Errore OCR");
+        // Ignoriamo silenziosamente gli errori dei singoli frame per non spammare alert
+        console.warn("Frame OCR Error:", err);
     } finally {
-        loading.classList.add('hidden');
-        document.querySelector('#scanner-loading p').textContent = 'Lettura in corso...'; // reset text
+        isProcessingFrame = false;
     }
-};
+}
 
 window.uploadScanner = function(target) {
     currentScannerTarget = target;
