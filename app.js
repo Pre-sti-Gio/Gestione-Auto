@@ -13,15 +13,13 @@ function saveData() {
 }
 
 // --- CUSTOM MODALS LOGIC ---
-function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '', inputType = 'text', showCamera = false }) {
+function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defaultValue = '', inputType = 'text' }) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('custom-modal-overlay');
         const titleEl = document.getElementById('custom-modal-title');
         const messageEl = document.getElementById('custom-modal-message');
         const inputGroup = document.getElementById('custom-modal-input-group');
         const inputEl = document.getElementById('custom-modal-input');
-        const cameraBtn = document.getElementById('custom-modal-camera-btn');
-        const galleryBtn = document.getElementById('custom-modal-gallery-btn');
         const cancelBtn = document.getElementById('custom-modal-cancel');
         const confirmBtn = document.getElementById('custom-modal-confirm');
 
@@ -30,8 +28,6 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
 
         // Reset state
         inputGroup.classList.add('hidden');
-        cameraBtn.classList.add('hidden');
-        galleryBtn.classList.add('hidden');
         cancelBtn.classList.add('hidden');
         inputEl.value = '';
 
@@ -49,11 +45,6 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
                 inputEl.removeAttribute('inputmode');
                 inputEl.removeAttribute('pattern');
                 inputEl.removeAttribute('step');
-            }
-            
-            if (showCamera) {
-                cameraBtn.classList.remove('hidden');
-                galleryBtn.classList.remove('hidden');
             }
             
             inputGroup.classList.remove('hidden');
@@ -95,7 +86,7 @@ function showCustomModal({ title = 'Avviso', message = '', type = 'alert', defau
 
 window.CustomAlert = (message, title = 'Avviso') => showCustomModal({ title, message, type: 'alert' });
 window.CustomConfirm = (message, title = 'Conferma') => showCustomModal({ title, message, type: 'confirm' });
-window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text', showCamera = false) => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType, showCamera });
+window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text') => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType });
 
 
 // Navigation & Tabs
@@ -999,242 +990,41 @@ if (btnExportCsv) {
     });
 }
 
-// --- OCR SCANNER LOGIC ---
-let scannerStream = null;
-let currentScannerTarget = null;
-let scanInterval = null;
-let isProcessingFrame = false;
 
-window.openScanner = async function(target) {
-    currentScannerTarget = target;
-    const overlay = document.getElementById('scanner-modal-overlay');
-    const video = document.getElementById('scanner-video');
-    const loadingText = document.querySelector('#scanner-loading p');
-    const loadingOverlay = document.getElementById('scanner-loading');
-    
-    overlay.classList.remove('hidden');
-    loadingOverlay.classList.add('hidden'); // Assicuriamoci che non copra il video all'avvio
-    
-    try {
-        scannerStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' },
-            audio: false
-        });
-        video.srcObject = scannerStream;
-        
-        // Avvia il loop di scansione continua
-        isProcessingFrame = false;
-        scanInterval = setInterval(() => {
-            if (!isProcessingFrame && scannerStream) {
-                processScannerFrame();
-            }
-        }, 1500); // 1.5 secondi per frame per non sovraccaricare il telefono
-        
-    } catch (err) {
-        console.error("Camera error:", err);
-        window.CustomAlert("Impossibile accedere alla fotocamera. Controlla i permessi o assicurati di usare HTTPS.", "Errore Fotocamera");
-        window.closeScanner();
-    }
-};
-
-window.closeScanner = function() {
-    const overlay = document.getElementById('scanner-modal-overlay');
-    const video = document.getElementById('scanner-video');
-    
-    if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
-    }
-    
-    overlay.classList.add('hidden');
-    
-    if (scannerStream) {
-        scannerStream.getTracks().forEach(track => track.stop());
-        scannerStream = null;
-    }
-    video.srcObject = null;
-};
-
-async function processScannerFrame() {
-    if (!scannerStream) return;
-    const video = document.getElementById('scanner-video');
-    const canvas = document.getElementById('scanner-canvas');
-    const guideBox = document.getElementById('scanner-guide-box');
-    
-    if (!video.videoWidth) return; // Video non ancora pronto
-    
-    isProcessingFrame = true;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    
-    try {
-        const videoRect = video.getBoundingClientRect();
-        const guideRect = guideBox.getBoundingClientRect();
-        
-        const scaleX = video.videoWidth / videoRect.width;
-        const scaleY = video.videoHeight / videoRect.height;
-        
-        const cropX = (guideRect.left - videoRect.left) * scaleX;
-        const cropY = (guideRect.top - videoRect.top) * scaleY;
-        const cropWidth = guideRect.width * scaleX;
-        const cropHeight = guideRect.height * scaleY;
-        
-        const MAX_WIDTH = 600;
-        let scaleDown = 1;
-        if (cropWidth > MAX_WIDTH) {
-            scaleDown = MAX_WIDTH / cropWidth;
+// --- LOGICA CHECKBOX KM PRECEDENTI ---
+function getLastKm() {
+    let maxKm = 0;
+    STATE.prenotazioni.forEach(p => {
+        if (p.status === 'attiva') {
+            const currentMax = p.kmFine || p.kmInizio || 0;
+            if (currentMax > maxKm) maxKm = currentMax;
         }
-        
-        canvas.width = cropWidth * scaleDown;
-        canvas.height = cropHeight * scaleDown;
-        
-        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
-        
-        // --- FILTRO OTTICO ALTO CONTRASTO (Testo rosso/arancio su nero -> Testo nero su bianco) ---
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i], g = data[i+1], b = data[i+2];
-            // Se i pixel sono caldi/luminosi (testo cruscotto), li facciamo neri, altrimenti bianchi (sfondo nero -> bianco)
-            // Questo aiuta tantissimo Tesseract
-            const isWarmAndBright = (r > 100 && r > b + 20); 
-            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            
-            if (isWarmAndBright || lum > 100) {
-                // E' il testo! Facciamolo nero
-                data[i] = data[i+1] = data[i+2] = 0;
-            } else {
-                // E' lo sfondo! Facciamolo bianco
-                data[i] = data[i+1] = data[i+2] = 255;
-            }
-        }
-        ctx.putImageData(imgData, 0, 0);
-        // -----------------------------------------------------------------------------------------
-        
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        
-        if (typeof Tesseract === 'undefined') {
-            throw new Error("Tesseract.js non caricato.");
-        }
-        
-        // Timeout breve per i singoli frame in modo da non bloccare il loop
-        const ocrPromise = Tesseract.recognize(imageDataUrl, 'ita');
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error("Timeout frame")), 3000);
-        });
-        
-        let result;
-        try {
-            result = await Promise.race([ocrPromise, timeoutPromise]);
-            clearTimeout(timeoutId);
-        } catch(e) {
-            clearTimeout(timeoutId);
-            isProcessingFrame = false;
-            return; // ignoriamo i frame lenti e passiamo al prossimo
-        }
-        
-        // Se l'utente ha chiuso lo scanner (Annulla) mentre l'IA stava pensando, interrompiamo.
-        if (!scanInterval) {
-            isProcessingFrame = false;
-            return;
-        }
-        
-        const text = result.data.text;
-        
-        const numbersMatch = text.match(/\d+/g);
-        if (numbersMatch) {
-            let bestNumber = "";
-            for (const n of numbersMatch) {
-                if (n.length > bestNumber.length) {
-                    bestNumber = n;
-                }
-            }
-            
-            // I chilometri solitamente hanno 5 o 6 cifre (raramente 4 su macchine vecchissime)
-            if (bestNumber.length >= 4 && bestNumber.length <= 6) {
-                // TROVATO!
-                if ("vibrate" in navigator) navigator.vibrate(200); // Feedback fisico
-                
-                const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
-                document.getElementById(inputId).value = parseInt(bestNumber, 10);
-                window.closeScanner();
-            }
-        }
-    } catch(err) {
-        // Ignoriamo silenziosamente gli errori dei singoli frame per non spammare alert
-        console.warn("Frame OCR Error:", err);
-    } finally {
-        isProcessingFrame = false;
-    }
+    });
+    return maxKm;
 }
 
-window.uploadScanner = function(target) {
-    currentScannerTarget = target;
-    const fileInput = document.getElementById('scanner-file-upload');
-    fileInput.click();
-};
-
-window.handleFileUpload = async function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    // Resetta l'input per permettere di ricaricare lo stesso file
-    event.target.value = '';
-    
-    const loading = document.getElementById('loading-overlay');
-    loading.querySelector('p').textContent = 'Lettura immagine in corso...';
-    loading.classList.remove('hidden');
-    
-    try {
-        if (typeof Tesseract === 'undefined') {
-            throw new Error("Tesseract.js non caricato.");
-        }
-        
-        const loadingText = document.querySelector('#loading-overlay p');
-        loadingText.textContent = "Avvio Motore IA...";
-
-        const ocrPromise = Tesseract.recognize(file, 'ita', {
-            logger: m => {
-                console.log(m);
-                if (m.status === 'recognizing text') {
-                    loadingText.textContent = `Scansione: ${Math.round(m.progress * 100)}%`;
-                } else {
-                    loadingText.textContent = `AI: ${m.status}`;
-                }
-            }
-        });
-
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error("Timeout IA (connessione lenta o bloccata)")), 45000);
-        });
-        
-        const result = await Promise.race([ocrPromise, timeoutPromise]);
-        clearTimeout(timeoutId);
-        
-        const text = result.data.text;
-        console.log("OCR Gallery Result:", text);
-        
-        const numbersMatch = text.match(/\d+/g);
-        if (numbersMatch) {
-            // Prendiamo il numero più lungo trovato, solitamente i Km sono 5-6 cifre
-            let bestNumber = "";
-            for (const n of numbersMatch) {
-                if (n.length > bestNumber.length) {
-                    bestNumber = n;
-                }
-            }
-            
-            const inputId = currentScannerTarget === 'inizio' ? 'prenotazione-km-inizio' : (currentScannerTarget === 'fine' ? 'prenotazione-km-fine' : currentScannerTarget);
-            document.getElementById(inputId).value = parseInt(bestNumber, 10);
+const btnAutoKm = document.getElementById('btn-auto-km-inizio');
+const inputKmInizio = document.getElementById('prenotazione-km-inizio');
+if (btnAutoKm && inputKmInizio) {
+    btnAutoKm.addEventListener('click', () => {
+        if (btnAutoKm.classList.contains('active')) {
+            btnAutoKm.classList.remove('active');
+            inputKmInizio.value = '';
         } else {
-            window.CustomAlert("Non sono riuscito a trovare nessun numero nella foto.", "Errore Lettura");
+            const lastKm = getLastKm();
+            if (lastKm > 0) {
+                inputKmInizio.value = lastKm;
+                btnAutoKm.classList.add('active');
+            } else {
+                window.CustomAlert('Nessun dato chilometrico precedente trovato.', 'Attenzione');
+            }
         }
-    } catch(err) {
-        console.error("OCR Gallery Error:", err);
-        window.CustomAlert("Errore durante l'elaborazione dell'immagine.", "Errore OCR");
-    } finally {
-        loading.querySelector('p').textContent = 'Sincronizzazione in corso...'; // reset
-        loading.classList.add('hidden');
-    }
-};
+    });
+    
+    // Se l'utente modifica a mano il valore, spegniamo il bottone
+    inputKmInizio.addEventListener('input', () => {
+        if (btnAutoKm.classList.contains('active')) {
+            btnAutoKm.classList.remove('active');
+        }
+    });
+}

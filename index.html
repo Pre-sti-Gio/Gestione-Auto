@@ -16,8 +16,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- OCR Library -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body class="theme-macchina">
     <!-- Overlay Caricamento -->
@@ -33,11 +31,7 @@
             <p id="custom-modal-message">Messaggio</p>
             <div id="custom-modal-input-group" class="input-with-btn hidden" style="margin-bottom: 1.5rem;">
                 <input type="text" id="custom-modal-input" style="margin-bottom: 0;">
-                <button type="button" id="custom-modal-camera-btn" class="btn-scan-cam hidden" onclick="window.openScanner('custom-modal-input')" title="Scatta Foto">📸</button>
-                <button type="button" id="custom-modal-gallery-btn" class="btn-scan-cam hidden" onclick="window.uploadScanner('custom-modal-input')" title="Allega Galleria">📎</button>
             </div>
-            <!-- File input hidden per la galleria -->
-            <input type="file" id="scanner-file-upload" accept="image/*" class="hidden" onchange="window.handleFileUpload(event)">
             <div class="custom-modal-actions">
                 <button id="custom-modal-cancel" class="delete-btn">Annulla</button>
                 <button id="custom-modal-confirm" class="primary-btn" style="margin-top: 0;">OK</button>
@@ -46,24 +40,7 @@
         </div>
     </div>
 
-    <!-- OCR Scanner Modal -->
-    <div id="scanner-modal-overlay" class="custom-modal-overlay hidden" style="z-index: 10001; padding: 0; background: #000;">
-        <div class="scanner-container">
-            <video id="scanner-video" autoplay playsinline></video>
-            <div class="scanner-overlay">
-                <p style="position: absolute; top: 15%; width: 100%; text-align: center; color: white; font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none;">Inquadra il cruscotto...</p>
-                <div class="scanner-guide" id="scanner-guide-box"></div>
-            </div>
-            <div class="scanner-actions" style="justify-content: center;">
-                <button type="button" class="delete-btn" onclick="window.closeScanner()" style="max-width: 200px;">Annulla</button>
-            </div>
-            <div id="scanner-loading" class="scanner-loading hidden">
-                <div class="spinner"></div>
-                <p>Elaborazione...</p>
-            </div>
-            <canvas id="scanner-canvas" class="hidden"></canvas>
-        </div>
-    </div>
+    <!-- Scanner removed -->
 
     <div class="app-container">
         <header>
@@ -124,15 +101,12 @@
                                 <label>Conteggio iniziale</label>
                                 <div class="input-with-btn">
                                     <input type="number" id="prenotazione-km-inizio" placeholder="Es. 50000" min="0" inputmode="numeric" pattern="[0-9]*">
-                                    <button type="button" class="btn-scan-cam" onclick="window.openScanner('inizio')" title="Scansiona Km">📸</button>
+                                    <button type="button" class="btn-auto-km" id="btn-auto-km-inizio" title="Usa Km della corsa precedente">AUTO</button>
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label>Conteggio finale</label>
-                                <div class="input-with-btn">
-                                    <input type="number" id="prenotazione-km-fine" placeholder="Es. 50020" min="0" inputmode="numeric" pattern="[0-9]*">
-                                    <button type="button" class="btn-scan-cam" onclick="window.openScanner('fine')" title="Scansiona Km">📸</button>
-                                </div>
+                                <input type="number" id="prenotazione-km-fine" placeholder="Es. 50020" min="0" inputmode="numeric" pattern="[0-9]*">
                             </div>
                         </div>
                         <div class="form-group" style="margin-bottom: 1.25rem;">
