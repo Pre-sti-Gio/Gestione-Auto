@@ -1,14 +1,32 @@
 // Data Models and Storage
 const STATE = {
     prenotazioni: JSON.parse(localStorage.getItem('prenotazioni')) || [],
-    rifornimenti: JSON.parse(localStorage.getItem('rifornimenti')) || [],
-    spesa: JSON.parse(localStorage.getItem('spesa')) || []
+    rifornimenti: JSON.parse(localStorage.getItem('rifornimenti')) || []
 };
+
+// Pulizia dati della vecchia sezione "Spesa" (rimossa)
+localStorage.removeItem('spesa');
+
+// Google Sheets restituisce le date come istante UTC (es. "2026-04-23T22:00:00.000Z"
+// = mezzanotte del 24/04 in Italia). Le riconvertiamo nel giorno locale "YYYY-MM-DD".
+function toLocalYMD(value) {
+    if (typeof value !== 'string' || !value.includes('T')) return value;
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function normalizzaRifornimenti(lista) {
+    return lista.map(r => ({ ...r, data: toLocalYMD(r.data) }));
+}
+
+STATE.rifornimenti = normalizzaRifornimenti(STATE.rifornimenti);
 
 function saveData() {
     localStorage.setItem('prenotazioni', JSON.stringify(STATE.prenotazioni));
     localStorage.setItem('rifornimenti', JSON.stringify(STATE.rifornimenti));
-    localStorage.setItem('spesa', JSON.stringify(STATE.spesa));
     renderAll();
 }
 
@@ -89,23 +107,7 @@ window.CustomConfirm = (message, title = 'Conferma') => showCustomModal({ title,
 window.CustomPrompt = (message, defaultValue = '', title = 'Inserisci dato', inputType = 'text') => showCustomModal({ title, message, type: 'prompt', defaultValue, inputType });
 
 
-// Navigation & Tabs
-document.getElementById('nav-macchina').addEventListener('click', () => switchSection('sec-macchina', 'nav-macchina'));
-document.getElementById('nav-spesa').addEventListener('click', () => switchSection('sec-spesa', 'nav-spesa'));
-
-function switchSection(secId, navId) {
-    document.querySelectorAll('.app-section').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById(secId).classList.add('active');
-    document.getElementById(navId).classList.add('active');
-    
-    if (secId === 'sec-macchina') {
-        document.body.className = 'theme-macchina';
-    } else if (secId === 'sec-spesa') {
-        document.body.className = 'theme-spesa';
-    }
-}
-
+// Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         if (!e.target.dataset.target) return; // Ignora i bottoni dei sub-tab (Singolo/Famiglia)
@@ -157,7 +159,13 @@ document.getElementById('form-prenotazione').addEventListener('submit', async (e
         btnSubmit.disabled = false;
         return;
     }
-    
+
+    if (!(await confermaSovrapposizione(kmInizio, kmFine))) {
+        btnSubmit.textContent = originalText;
+        btnSubmit.disabled = false;
+        return;
+    }
+
     const obj = {
         id: Date.now(),
         action: 'create', // Nuova proprietà per Apps Script
@@ -248,10 +256,12 @@ document.getElementById('form-rifornimento').addEventListener('submit', async (e
     const importo = parseFloat(document.getElementById('rifornimento-importo').value);
     const costoL = parseFloat(document.getElementById('rifornimento-costo').value);
     
+    const autonomia = parseInt(document.getElementById('rifornimento-autonomia').value) || 0;
+
     const litri = parseFloat((importo / costoL).toFixed(2));
     const timestamp = new Date().toLocaleString();
-    
-    const obj = { id: Date.now(), utente, data, importo, costoL, litri, timestamp };
+
+    const obj = { id: Date.now(), utente, data, importo, costoL, litri, autonomia, timestamp };
     STATE.rifornimenti.push(obj);
     saveData();
     e.target.reset();
@@ -274,63 +284,6 @@ document.getElementById('form-rifornimento').addEventListener('submit', async (e
     }
 });
 
-// Spesa
-document.getElementById('form-spesa').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btnSubmit = e.target.querySelector('button[type="submit"]');
-    const originalText = btnSubmit.textContent;
-    btnSubmit.textContent = 'Aggiunta...';
-    btnSubmit.disabled = true;
-
-    const utente = document.getElementById('spesa-utente').value;
-    const prodotto = document.getElementById('spesa-prodotto').value;
-    const timestamp = new Date().toLocaleString();
-    
-    const obj = { id: Date.now(), prodotto, utente, timestamp, status: 'attiva' };
-    STATE.spesa.push(obj);
-    saveData();
-    e.target.reset();
-
-    try {
-        if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== "INSERISCI_QUI_IL_TUO_URL_DELLA_WEB_APP") {
-            await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'create_spesa', ...obj })
-            });
-        }
-    } catch(err) {
-        console.error(err);
-    } finally {
-        btnSubmit.textContent = originalText;
-        btnSubmit.disabled = false;
-    }
-});
-
-// Resa globale nello scope window
-window.rimuoviSpesa = async function(id) {
-    const confermato = await window.CustomConfirm("Vuoi davvero eliminare questo prodotto dalla lista della spesa?", "Elimina prodotto");
-    if(!confermato) return;
-
-    const s = STATE.spesa.find(x => x.id === id);
-    if(s) {
-        s.status = 'cancellata';
-        saveData();
-        
-        if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== "INSERISCI_QUI_IL_TUO_URL_DELLA_WEB_APP") {
-            try {
-                await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'delete_spesa', id: id })
-                });
-            } catch(e) {
-                console.error("Errore cancellazione spesa:", e);
-            }
-        }
-    }
-};
-
 window.cancellaPrenotazione = cancellaPrenotazione;
 
 window.modificaPrenotazione = async function(id) {
@@ -340,7 +293,9 @@ window.modificaPrenotazione = async function(id) {
     if (newInizio === null) return;
     const newFine = await window.CustomPrompt("Inserisci il Conteggio Finale (km):", p.kmFine || "", "Modifica Km Finali", "number", true);
     if (newFine === null) return;
-    
+
+    if (!(await confermaSovrapposizione(parseInt(newInizio) || 0, parseInt(newFine) || 0, p.id))) return;
+
     p.kmInizio = parseInt(newInizio) || 0;
     p.kmFine = parseInt(newFine) || 0;
     p.km = (p.kmFine >= p.kmInizio && p.kmFine > 0) ? p.kmFine - p.kmInizio : 0;
@@ -475,24 +430,234 @@ function renderRegistro() {
     });
 }
 
-function renderSpesa() {
-    const list = document.getElementById('lista-spesa');
-    list.innerHTML = '';
-    
-    // Mostriamo in cima i più recenti, solo quelli attivi
-    const sortedSpesa = STATE.spesa.filter(s => s.status !== 'cancellata').sort((a,b) => b.id - a.id);
-    sortedSpesa.forEach(s => {
-        const li = document.createElement('li');
-        li.className = 'list-item';
-        li.innerHTML = `
-            <div class="list-item-content">
-                <span class="list-item-title">${s.prodotto}</span>
-                <span class="list-item-meta">Aggiunto da ${s.utente || 'Ignoto'} il ${s.timestamp || s.data}</span>
-            </div>
-            <button class="delete-btn" onclick="window.rimuoviSpesa(${s.id})">Rimuovi</button>
-        `;
-        list.appendChild(li);
+// --- CALCOLI CARBURANTE E CHILOMETRI ---
+const CAPACITA_SERBATOIO_L = 37;      // Fiat Panda 2012
+const CONSUMO_DEFAULT_L100 = 5.8;     // usato solo se i dati non bastano per calcolare quello reale
+// L'autonomia del cruscotto è prudente: per ogni litro aggiunto mostra circa l'80% dei km reali
+// (calibrato sulle foto: 272 km il 01/11 a 103.903 → 524 km il 06/11 a 104.000 dopo 25 L).
+const FATTORE_PRUDENZA_AUTONOMIA = 0.8;
+
+// Letture reali del cruscotto per "agganciare" la stima del serbatoio.
+// Formato: { data: 'YYYY-MM-DD', ora: 'HH:MM', km: <contachilometri>, autonomia: <km "Auton." sul cruscotto> }
+const CALIBRAZIONI_SERBATOIO = [
+    { data: '2026-11-06', ora: '18:35', km: 104018, autonomia: 566 } // foto cruscotto del 06/11
+];
+
+function prenotazioniValide(prenotazioni) {
+    return prenotazioni.filter(p => p.status === 'attiva');
+}
+
+// Unisce i tratti [kmInizio, kmFine] dei viaggi: così i km sovrapposti vengono contati una sola volta.
+function analizzaChilometri(prenotazioni) {
+    const tratti = prenotazioniValide(prenotazioni)
+        .filter(p => p.kmInizio > 0 && p.kmFine > p.kmInizio)
+        .sort((a, b) => a.kmInizio - b.kmInizio || a.kmFine - b.kmFine);
+
+    let minKm = Infinity, maxKm = 0;
+    prenotazioniValide(prenotazioni).forEach(p => {
+        [p.kmInizio, p.kmFine].forEach(k => {
+            if (k > 0) { minKm = Math.min(minKm, k); maxKm = Math.max(maxKm, k); }
+        });
     });
+    if (minKm === Infinity) minKm = 0;
+
+    let coperti = 0, fineCorrente = -Infinity, inizioCorrente = 0, owner = null;
+    const sovrapposizioni = [];
+    tratti.forEach(t => {
+        if (t.kmInizio < fineCorrente) {
+            sovrapposizioni.push({ a: owner, b: t, km: Math.min(t.kmFine, fineCorrente) - t.kmInizio });
+            if (t.kmFine > fineCorrente) { fineCorrente = t.kmFine; owner = t; }
+        } else {
+            if (fineCorrente > -Infinity) coperti += fineCorrente - inizioCorrente;
+            inizioCorrente = t.kmInizio; fineCorrente = t.kmFine; owner = t;
+        }
+    });
+    if (fineCorrente > -Infinity) coperti += fineCorrente - inizioCorrente;
+
+    const totali = maxKm > minKm ? maxKm - minKm : 0;
+    return {
+        minKm, maxKm, totali,
+        registrati: coperti,
+        fantasma: Math.max(0, totali - coperti),
+        sovrapposizioni,
+        kmDoppi: sovrapposizioni.reduce((s, x) => s + x.km, 0)
+    };
+}
+
+// Letture del contachilometri nel tempo (inizio e fine di ogni viaggio).
+// Il contachilometri può solo crescere: se un viaggio ha date o km incoerenti con gli altri
+// (es. data sbagliata), le sue letture vengono scartate tenendo la sequenza crescente più lunga.
+function analizzaLetture(prenotazioni) {
+    const punti = [];
+    prenotazioniValide(prenotazioni).forEach(p => {
+        const dI = p.dataInizio || p.data, dF = p.dataFine || p.data;
+        if (p.kmInizio > 0 && dI) punti.push({ t: new Date(`${dI}T${p.inizio || '12:00'}`).getTime(), km: p.kmInizio, p });
+        if (p.kmFine > 0 && dF) punti.push({ t: new Date(`${dF}T${p.fine || '12:00'}`).getTime(), km: p.kmFine, p });
+    });
+    const ordinati = punti.filter(x => !isNaN(x.t)).sort((a, b) => a.t - b.t || a.km - b.km);
+
+    // Sequenza non decrescente più lunga (O(n²), i viaggi sono poche centinaia)
+    const n = ordinati.length, len = new Array(n).fill(1), prev = new Array(n).fill(-1);
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < i; j++) {
+            if (ordinati[j].km <= ordinati[i].km && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; }
+        }
+        if (best < 0 || len[i] >= len[best]) best = i;
+    }
+    const tenuti = new Set();
+    for (let i = best; i >= 0; i = prev[i]) tenuti.add(i);
+
+    const letture = ordinati.filter((_, i) => tenuti.has(i)).map(x => ({ t: x.t, km: x.km }));
+    const incoerenti = [...new Set(ordinati.filter((_, i) => !tenuti.has(i)).map(x => x.p))];
+    return { letture, incoerenti };
+}
+
+function lettureContachilometri(prenotazioni) {
+    return analizzaLetture(prenotazioni).letture;
+}
+
+// Stima i km segnati dal contachilometri in un certo istante (interpolazione tra due letture).
+function kmAllaData(punti, t) {
+    if (!punti.length) return 0;
+    if (t <= punti[0].t) return punti[0].km;
+    const last = punti[punti.length - 1];
+    if (t >= last.t) return last.km;
+    for (let i = 1; i < punti.length; i++) {
+        if (t <= punti[i].t) {
+            const a = punti[i - 1], b = punti[i];
+            return b.t === a.t ? b.km : a.km + (b.km - a.km) * (t - a.t) / (b.t - a.t);
+        }
+    }
+    return last.km;
+}
+
+function istanteRifornimento(r) {
+    return new Date(`${toLocalYMD(r.data)}T12:00`).getTime();
+}
+
+// Consumo reale: litri versati tra il primo e l'ultimo rifornimento / km percorsi nello stesso periodo.
+// L'ultimo rifornimento è escluso perché quella benzina è ancora (in buona parte) nel serbatoio.
+function calcolaConsumo(prenotazioni, rifornimenti) {
+    const punti = lettureContachilometri(prenotazioni);
+    const rif = rifornimenti.filter(r => r.litri > 0 && r.data).sort((a, b) => istanteRifornimento(a) - istanteRifornimento(b));
+    const fallback = { l100: CONSUMO_DEFAULT_L100, kmPerL: 100 / CONSUMO_DEFAULT_L100, reale: false };
+    if (rif.length < 3 || punti.length < 2) return fallback;
+
+    const tUltimo = istanteRifornimento(rif[rif.length - 1]);
+    const litri = rif.filter(r => istanteRifornimento(r) < tUltimo).reduce((s, r) => s + r.litri, 0);
+    const km = kmAllaData(punti, tUltimo) - kmAllaData(punti, istanteRifornimento(rif[0]));
+    if (km < 1000 || litri <= 0) return fallback;
+
+    const l100 = litri / km * 100;
+    if (l100 < 3.5 || l100 > 9) return fallback; // valore non plausibile: dati sporchi
+    return { l100, kmPerL: km / litri, reale: true, km, litri };
+}
+
+// Stima dell'autonomia residua, a partire dall'ultima lettura reale del cruscotto ("Auton." in km):
+//   autonomia = lettura − km percorsi da allora + litri riforniti dopo la lettura × km/l reali
+// Le letture arrivano da CALIBRAZIONI_SERBATOIO o dal campo facoltativo del modulo Rifornimento.
+function stimaAutonomia(prenotazioni, rifornimenti, consumo) {
+    const punti = lettureContachilometri(prenotazioni);
+    if (!punti.length) return null;
+
+    const letture = [
+        ...CALIBRAZIONI_SERBATOIO.map(c => ({
+            t: new Date(`${c.data}T${c.ora || '12:00'}`).getTime(), km: c.km, autonomia: c.autonomia, rif: null
+        })),
+        ...rifornimenti.filter(r => r.autonomia > 0 && r.data).map(r => ({
+            t: istanteRifornimento(r), km: kmAllaData(punti, istanteRifornimento(r)), autonomia: r.autonomia, rif: r
+        }))
+    ].filter(l => l.km > 0 && l.autonomia > 0 && !isNaN(l.t));
+    if (!letture.length) return null;
+
+    const base = letture.sort((a, b) => a.t - b.t || a.km - b.km)[letture.length - 1];
+    const kmAttuali = Math.max(punti[punti.length - 1].km, base.km);
+    const kmDaAllora = kmAttuali - base.km;
+    const rifDopo = rifornimenti.filter(r => r !== base.rif && r.litri > 0 && r.data && istanteRifornimento(r) > base.t);
+    const litriDopo = rifDopo.reduce((s, r) => s + r.litri, 0);
+
+    const massima = CAPACITA_SERBATOIO_L * consumo.kmPerL;
+    const autonomiaKm = Math.min(massima, Math.max(0, base.autonomia - kmDaAllora + litriDopo * consumo.kmPerL * FATTORE_PRUDENZA_AUTONOMIA));
+    return {
+        autonomiaKm,
+        litri: autonomiaKm / consumo.kmPerL,
+        percentuale: autonomiaKm / massima * 100,
+        base, kmAttuali, kmDaAllora, litriDopo,
+        giorniDaLettura: Math.floor((Date.now() - base.t) / 86400000)
+    };
+}
+
+function renderIndicatoreBenzina(consumo) {
+    const box = document.getElementById('fuel-indicator');
+    if (!box) return;
+    const s = stimaAutonomia(STATE.prenotazioni, STATE.rifornimenti, consumo);
+    box.classList.remove('hidden');
+    const fmt = n => Math.round(n).toLocaleString('it-IT');
+
+    if (!s) {
+        box.dataset.livello = 'medio';
+        document.getElementById('fuel-km').textContent = '--';
+        document.getElementById('fuel-bar-fill').style.width = '0%';
+        document.getElementById('fuel-litri').textContent = '';
+        document.getElementById('fuel-note').textContent =
+            'Nessuna lettura disponibile: al prossimo rifornimento inserisci l\'autonomia indicata dal cruscotto.';
+        return;
+    }
+
+    box.dataset.livello = s.autonomiaKm < 100 ? 'basso' : s.autonomiaKm < 250 ? 'medio' : 'alto';
+    document.getElementById('fuel-km').textContent = `~${(Math.round(s.autonomiaKm / 10) * 10).toLocaleString('it-IT')} km`;
+    document.getElementById('fuel-bar-fill').style.width = `${Math.max(3, s.percentuale).toFixed(0)}%`;
+    document.getElementById('fuel-litri').textContent = `≈ ${s.litri.toFixed(0)} L su ${CAPACITA_SERBATOIO_L}`;
+
+    const dataLettura = new Date(s.base.t).toLocaleDateString('it-IT');
+    let nota = `Ultima lettura cruscotto: ${fmt(s.base.autonomia)} km il ${dataLettura} (a ${fmt(s.base.km)} km)`;
+    if (s.kmDaAllora > 0) nota += ` · poi ${fmt(s.kmDaAllora)} km percorsi`;
+    if (s.litriDopo > 0) nota += ` · +${s.litriDopo.toFixed(1).replace('.', ',')} L riforniti`;
+    nota += ` · consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100km`;
+    if (s.giorniDaLettura > 21) nota += ' · ⚠️ lettura vecchia: aggiornala al prossimo rifornimento';
+    document.getElementById('fuel-note').textContent = nota;
+}
+
+function renderSovrapposizioni(analisi) {
+    const box = document.getElementById('overlap-warning');
+    if (!box) return;
+
+    // Viaggi con data incoerente: i loro km sono lontani da quelli segnati dal contachilometri in quel giorno
+    const { letture, incoerenti } = analizzaLetture(STATE.prenotazioni);
+    const dateSbagliate = incoerenti.filter(p => {
+        const t = new Date(`${p.dataInizio || p.data}T${p.inizio || '12:00'}`).getTime();
+        return Math.abs(kmAllaData(letture, t) - (p.kmInizio || p.kmFine)) > 300;
+    });
+
+    if (!analisi.sovrapposizioni.length && !dateSbagliate.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const fmt = p => `${p.utente} ${(p.dataInizio || p.data || '').split('-').reverse().slice(0, 2).join('/')} (${p.kmInizio}→${p.kmFine})`;
+    let html = '';
+    if (analisi.sovrapposizioni.length) {
+        html += `<strong>⚠️ ${analisi.kmDoppi} km inseriti due volte</strong> in ${analisi.sovrapposizioni.length} viaggi sovrapposti. Correggili dal Registro (✏️):` +
+            '<ul>' + analisi.sovrapposizioni.map(s => `<li>${fmt(s.b)} si sovrappone a ${fmt(s.a)}</li>`).join('') + '</ul>';
+    }
+    if (dateSbagliate.length) {
+        html += `<strong style="display:block; margin-top:0.6rem;">📅 Viaggi con data probabilmente sbagliata</strong> (i km non corrispondono al periodo):` +
+            '<ul>' + dateSbagliate.map(p => `<li>${fmt(p)}</li>`).join('') + '</ul>';
+    }
+    box.innerHTML = html;
+}
+
+// Controlla se un nuovo tratto di km si sovrappone a viaggi già registrati
+function trovaSovrapposti(kmInizio, kmFine, escludiId) {
+    if (!(kmInizio > 0 && kmFine > kmInizio)) return [];
+    return prenotazioniValide(STATE.prenotazioni).filter(p =>
+        p.id !== escludiId && p.kmInizio > 0 && p.kmFine > p.kmInizio &&
+        kmInizio < p.kmFine && kmFine > p.kmInizio);
+}
+
+async function confermaSovrapposizione(kmInizio, kmFine, escludiId) {
+    const sovr = trovaSovrapposti(kmInizio, kmFine, escludiId);
+    if (!sovr.length) return true;
+    const elenco = sovr.map(p => `• ${p.utente} il ${p.dataInizio || p.data}: ${p.kmInizio} → ${p.kmFine}`).join('\n');
+    return window.CustomConfirm(`I km ${kmInizio} → ${kmFine} si sovrappongono a:\n\n${elenco}\n\nControlla il cruscotto. Vuoi salvare comunque?`, 'Km sovrapposti');
 }
 
 // Dashboard Charts
@@ -510,28 +675,23 @@ function renderDashboard() {
     const totalSpese = dataSpese.reduce((a,b) => a+b, 0);
     const totalLitri = dataLitri.reduce((a,b) => a+b, 0);
     
+    // Km registrati / fantasma calcolati unendo i tratti: i km sovrapposti contano una volta sola
+    const analisiKm = analizzaChilometri(STATE.prenotazioni);
+    const consumo = calcolaConsumo(STATE.prenotazioni, STATE.rifornimenti);
+    renderIndicatoreBenzina(consumo);
+    renderSovrapposizioni(analisiKm);
+
     const statKmEl = document.getElementById('stat-km');
-    if(statKmEl) statKmEl.textContent = totalKm.toLocaleString('it-IT');
-    
+    if(statKmEl) statKmEl.textContent = analisiKm.registrati.toLocaleString('it-IT');
+
     const statFuelEl = document.getElementById('stat-fuel');
     if(statFuelEl) statFuelEl.textContent = totalSpese.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
     
     const statLitriEl = document.getElementById('stat-litri');
     if(statLitriEl) statLitriEl.textContent = totalLitri.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' L';
     
-    // Km Fantasma Logic:
-    let kmFantasma = 0;
-    const prenotazioniValide = STATE.prenotazioni
-        .filter(p => p.status === 'attiva' && p.kmInizio > 0 && p.kmFine > 0)
-        .sort((a, b) => a.kmInizio - b.kmInizio);
-
-    for (let i = 0; i < prenotazioniValide.length - 1; i++) {
-        const prev = prenotazioniValide[i];
-        const next = prenotazioniValide[i + 1];
-        if (next.kmInizio > prev.kmFine) {
-            kmFantasma += (next.kmInizio - prev.kmFine);
-        }
-    }
+    // Km Fantasma: km del contachilometri non coperti da nessun viaggio registrato
+    const kmFantasma = analisiKm.fantasma;
 
     const statKmFantasmaEl = document.getElementById('stat-km-fantasma');
     if(statKmFantasmaEl) statKmFantasmaEl.textContent = kmFantasma.toLocaleString('it-IT');
@@ -575,7 +735,7 @@ function renderDashboard() {
     if(statKmTotaliVeriEl) statKmTotaliVeriEl.textContent = veriKmTotali.toLocaleString('it-IT');
 
     // Percentuali
-    const percRegistrati = veriKmTotali > 0 ? ((totalKm / veriKmTotali) * 100).toFixed(1) : 0;
+    const percRegistrati = veriKmTotali > 0 ? ((analisiKm.registrati / veriKmTotali) * 100).toFixed(1) : 0;
     const percFantasma = veriKmTotali > 0 ? ((kmFantasma / veriKmTotali) * 100).toFixed(1) : 0;
     
     const statKmPercEl = document.getElementById('stat-km-perc');
@@ -617,8 +777,8 @@ function renderDashboard() {
     });
 
     // --- NUOVO GRAFICO: BILANCIO CARBURANTE ---
-    // Consumo macchina medio: 5.8 L/100km
-    const consumoMedioKm_L = 100 / 5.8; // ~17.24 Km/L
+    // Consumo reale calcolato dai rifornimenti e dal contachilometri (fallback 5.8 L/100km)
+    const consumoMedioKm_L = consumo.kmPerL;
     
     // Calcoliamo il costo medio della benzina al litro inserita fino ad oggi
     let costoMedioLitro = 1.8; // default
@@ -697,7 +857,7 @@ function renderDashboard() {
                 legend: { display: false },
                 title: { 
                     display: true, 
-                    text: 'Bilancio Carburante (Consumo stimato: 5.8 L/100Km)',
+                    text: `Bilancio Carburante (Consumo ${consumo.reale ? 'reale' : 'stimato'}: ${consumo.l100.toFixed(1)} L/100Km)`,
                     font: { size: 14 }
                 },
                 tooltip: {
@@ -827,7 +987,6 @@ function renderRegistroRifornimenti() {
 function renderAll() {
     renderRegistro();
     renderRegistroRifornimenti();
-    renderSpesa();
     renderDashboard();
 }
 
@@ -880,10 +1039,7 @@ async function syncWithCloud() {
                 STATE.prenotazioni = data.prenotazioni;
             }
             if (data.rifornimenti) {
-                STATE.rifornimenti = data.rifornimenti;
-            }
-            if (data.spesa) {
-                STATE.spesa = data.spesa;
+                STATE.rifornimenti = normalizzaRifornimenti(data.rifornimenti);
             }
             
             // Salviamo e aggiorniamo l'interfaccia
@@ -957,14 +1113,6 @@ if (btnExportCsv) {
         csvContent += "ID,Utente,Data,Importo,Costo al Litro,Litri\n";
         STATE.rifornimenti.forEach(r => {
             let row = [r.id, r.utente, r.data||'', r.importo||0, r.costoL||0, r.litri||0].join(",");
-            csvContent += row + "\n";
-        });
-        
-        // Spesa
-        csvContent += "\n--- SPESA ---\n";
-        csvContent += "ID,Utente,Prodotto,Data,Status\n";
-        STATE.spesa.forEach(s => {
-            let row = [s.id, s.utente, `"${s.prodotto || ''}"`, s.data||s.timestamp||'', s.status||''].join(",");
             csvContent += row + "\n";
         });
 

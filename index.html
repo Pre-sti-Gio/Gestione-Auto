@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=7">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="theme-macchina">
@@ -45,10 +45,6 @@
     <div class="app-container">
         <header>
             <h1>Bro Drive</h1>
-            <nav class="main-nav">
-                <button id="nav-macchina" class="nav-btn active">Macchina</button>
-                <button id="nav-spesa" class="nav-btn">Spesa</button>
-            </nav>
         </header>
 
         <main>
@@ -161,6 +157,10 @@
                                 <input type="number" step="0.001" id="rifornimento-costo" placeholder="Es. 1.859" required>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Autonomia dopo il rifornimento (km) <span style="color:#94a3b8; font-weight:400;">· facoltativo</span></label>
+                            <input type="number" id="rifornimento-autonomia" placeholder="Es. 520 (valore &quot;Auton.&quot; sul cruscotto)" min="0" inputmode="numeric" pattern="[0-9]*">
+                        </div>
                         <button type="submit" class="primary-btn">Aggiungi Rifornimento</button>
                     </form>
                     
@@ -180,6 +180,17 @@
                         <button id="btn-export-csv" title="Esporta dati in CSV" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-size: 1.4rem; padding: 0.4rem 0.6rem; transition: transform 0.2s;">📥</button>
                     </div>
                     
+                    <!-- Indicatore Benzina -->
+                    <div id="fuel-indicator" class="fuel-indicator hidden">
+                        <div class="fuel-header">
+                            <h3>⛽ Autonomia stimata</h3>
+                            <span id="fuel-litri" class="fuel-litri"></span>
+                        </div>
+                        <p id="fuel-km" class="fuel-km">--</p>
+                        <div class="fuel-bar"><div id="fuel-bar-fill" class="fuel-bar-fill"></div></div>
+                        <p id="fuel-note" class="fuel-note"></p>
+                    </div>
+
                     <!-- Livello 1: Km In / Km Fin -->
                     <div class="form-row" style="margin-bottom: 0.5rem;">
                         <div class="form-group" style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px; text-align: center;">
@@ -221,6 +232,8 @@
                             <p id="stat-fuel" style="font-size: 1.8rem; font-weight: 700; color: #ef4444;">0 €</p>
                         </div>
                     </div>
+
+                    <div id="overlap-warning" class="overlap-warning hidden"></div>
 
                     <div class="tabs" style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
                         <button class="tab-btn active" id="btn-dash-singolo" onclick="window.switchDash('singolo')">Singolo</button>
@@ -281,28 +294,8 @@
                     </div> <!-- END dash-collettivo -->
                 </div>
             </section>
-
-            <!-- SEZIONE SPESA -->
-            <section id="sec-spesa" class="app-section">
-                <div class="glass-card">
-                    <h2>Lista della Spesa</h2>
-                    <form id="form-spesa" class="add-spesa-form" style="flex-wrap: wrap;">
-                        <select id="spesa-utente" required style="flex: 1; min-width: 150px;">
-                            <option value="" disabled selected>Chi sei?</option>
-                            <option value="Mamma">Mamma</option>
-                            <option value="Papà">Papà</option>
-                            <option value="Mary">Mary</option>
-                            <option value="Gio">Gio</option>
-                            <option value="Betty">Betty</option>
-                        </select>
-                        <input type="text" id="spesa-prodotto" placeholder="Cosa dobbiamo comprare?" required style="flex: 2; min-width: 200px;">
-                        <button type="submit" class="primary-btn">Aggiungi</button>
-                    </form>
-                    <ul id="lista-spesa" class="list-container"></ul>
-                </div>
-            </section>
         </main>
     </div>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
