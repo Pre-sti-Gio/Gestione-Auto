@@ -7,14 +7,14 @@
     
     <!-- PWA e Icone per il Telefono -->
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icon-512x512.png">
+    <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=1">
     <link rel="apple-touch-icon" href="icon-512x512.png">
     <meta name="theme-color" content="#0f172a">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=11">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="theme-macchina">
@@ -117,20 +117,27 @@
                 <!-- Registro -->
                 <div id="tab-registro" class="tab-content glass-card">
                     <h2>Registro Prenotazioni</h2>
-                    <div class="registro-toolbar">
-                        <select id="filtro-utente-registro" class="registro-select">
-                            <option value="Tutti">Tutti</option>
-                        </select>
-                        <div class="segmented" role="group" aria-label="Ordina per">
-                            <span class="seg-label">Ordina</span>
-                            <button type="button" class="seg-btn" data-ordina="viaggio" aria-pressed="true">Viaggio</button>
-                            <button type="button" class="seg-btn" data-ordina="inserimento" aria-pressed="false">Inserita</button>
+                    <div class="registro-filtri">
+                        <div class="filtri-riga">
+                            <select id="filtro-utente-registro" class="registro-select" aria-label="Persona">
+                                <option value="Tutti">Tutti</option>
+                            </select>
+                            <span id="registro-conteggio" class="registro-conteggio"></span>
                         </div>
-                    </div>
-                    <div class="registro-chips">
-                        <button type="button" id="chip-mancanti" class="chip" aria-pressed="false">Senza Km</button>
-                        <button type="button" id="chip-annullate" class="chip" aria-pressed="false">Mostra annullate</button>
-                        <span id="registro-conteggio" class="registro-conteggio"></span>
+                        <div class="filtri-gruppo">
+                            <span class="filtri-etichetta">Ordina per</span>
+                            <div class="segmented" role="group" aria-label="Ordina per">
+                                <button type="button" class="seg-btn" data-ordina="viaggio" aria-pressed="true">Data viaggio</button>
+                                <button type="button" class="seg-btn" data-ordina="inserimento" aria-pressed="false">Data inserimento</button>
+                            </div>
+                        </div>
+                        <div class="filtri-gruppo">
+                            <span class="filtri-etichetta">Mostra</span>
+                            <div class="chips-griglia">
+                                <button type="button" id="chip-mancanti" class="chip" aria-pressed="false">Solo senza km</button>
+                                <button type="button" id="chip-annullate" class="chip" aria-pressed="false">Annullate</button>
+                            </div>
+                        </div>
                     </div>
                     <ul id="lista-registro" class="list-container"></ul>
                 </div>
@@ -195,7 +202,6 @@
                         </div>
                         <p id="fuel-km" class="fuel-km">--</p>
                         <div class="fuel-bar"><div id="fuel-bar-fill" class="fuel-bar-fill"></div></div>
-                        <p id="fuel-odo" class="fuel-odo"></p>
                         <p id="fuel-note" class="fuel-note"></p>
                     </div>
 
@@ -304,6 +310,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js?v=15"></script>
+    <script src="app.js?v=16"></script>
 </body>
 </html>

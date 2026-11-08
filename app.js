@@ -418,7 +418,7 @@ function renderRegistro() {
     const chipAnnullate = document.getElementById('chip-annullate');
     if (chipAnnullate) {
         chipAnnullate.setAttribute('aria-pressed', String(REGISTRO_PREFS.mostraAnnullate));
-        chipAnnullate.textContent = `${REGISTRO_PREFS.mostraAnnullate ? 'Nascondi' : 'Mostra'} annullate (${numAnnullate})`;
+        chipAnnullate.textContent = `Annullate (${numAnnullate})`;
     }
     const conteggio = document.getElementById('registro-conteggio');
     if (conteggio) conteggio.textContent = `${filtered.length} ${filtered.length === 1 ? 'viaggio' : 'viaggi'}`;
@@ -658,15 +658,12 @@ function renderIndicatoreBenzina(consumo) {
     if (!box) return;
     const s = stimaAutonomia(STATE.prenotazioni, STATE.rifornimenti, consumo);
     box.classList.remove('hidden');
-    const fmt = n => Math.round(n).toLocaleString('it-IT');
 
     if (!s) {
         box.dataset.livello = 'medio';
         document.getElementById('fuel-km').textContent = '--';
         document.getElementById('fuel-bar-fill').style.width = '0%';
         document.getElementById('fuel-litri').textContent = '';
-        const odoVuoto = document.getElementById('fuel-odo');
-        if (odoVuoto) odoVuoto.textContent = '';
         document.getElementById('fuel-note').textContent =
             'Nessuna lettura disponibile: al prossimo rifornimento inserisci l\'autonomia indicata dal cruscotto.';
         return;
@@ -677,24 +674,8 @@ function renderIndicatoreBenzina(consumo) {
     document.getElementById('fuel-bar-fill').style.width = `${Math.max(3, s.percentuale).toFixed(0)}%`;
     document.getElementById('fuel-litri').textContent = `≈ ${s.litri.toFixed(0)} L su ${CAPACITA_SERBATOIO_L}`;
 
-    const dataLettura = new Date(s.base.t).toLocaleDateString('it-IT');
-    let nota = `Ultima lettura cruscotto: ${fmt(s.base.autonomia)} km il ${dataLettura} (a ${fmt(s.base.km)} km)`;
-    if (s.kmDaAllora > 0) nota += ` · poi ${fmt(s.kmDaAllora)} km percorsi`;
-    if (s.litriDopo > 0) nota += ` · +${s.litriDopo.toFixed(1).replace('.', ',')} L riforniti`;
-    nota += ` · consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100km`;
-    if (s.giorniDaLettura > 21) nota += ' · ⚠️ lettura vecchia: aggiornala al prossimo rifornimento';
-    document.getElementById('fuel-note').textContent = nota;
-
-    // Quanto è aggiornato il contachilometri: se nessuno inserisce km da giorni, la stima può essere ottimista
-    const odo = document.getElementById('fuel-odo');
-    if (odo) {
-        const g = s.giorniDaContachilometri;
-        const quando = g <= 0 ? 'oggi' : g === 1 ? 'ieri' : `${g} giorni fa`;
-        odo.textContent = `🚗 Contachilometri aggiornato al ${new Date(s.tContachilometri).toLocaleDateString('it-IT')} ` +
-            `(${fmt(s.kmAttuali)} km, ${quando})` +
-            (g >= 3 ? ' · ⚠️ nessuno ha inserito km da qualche giorno: la stima potrebbe essere ottimista' : '');
-        odo.dataset.vecchio = g >= 3 ? 'si' : 'no';
-    }
+    document.getElementById('fuel-note').textContent =
+        `Consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100 km`;
 }
 
 function renderSovrapposizioni(analisi) {
