@@ -675,7 +675,7 @@ function renderIndicatoreBenzina(consumo) {
 
     // "Aggiornato al": data dell'ultimo dato utile (km inserito o lettura del cruscotto)
     document.getElementById('fuel-note').textContent =
-        `Consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100 km · ` +
+        `Consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100 km\n` +
         `Aggiornato al ${new Date(s.tContachilometri).toLocaleDateString('it-IT')}`;
 }
 
