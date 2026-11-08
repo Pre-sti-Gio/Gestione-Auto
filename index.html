@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=7">
+    <link rel="stylesheet" href="style.css?v=10">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="theme-macchina">
@@ -97,8 +97,9 @@
                                 <label>Conteggio iniziale</label>
                                 <div class="input-with-btn">
                                     <input type="number" id="prenotazione-km-inizio" placeholder="Es. 50000" min="0" inputmode="numeric" pattern="[0-9]*">
-                                    <button type="button" class="btn-auto-km" id="btn-auto-km-inizio" title="Usa Km della corsa precedente">AUTO</button>
+                                    <button type="button" class="btn-auto-km" id="btn-auto-km-inizio" title="Usa i km finali del viaggio precedente">AUTO</button>
                                 </div>
+                                <small id="auto-km-fonte" class="auto-km-fonte"></small>
                             </div>
                             <div class="form-group">
                                 <label>Conteggio finale</label>
@@ -116,14 +117,20 @@
                 <!-- Registro -->
                 <div id="tab-registro" class="tab-content glass-card">
                     <h2>Registro Prenotazioni</h2>
-                    <div style="display: flex; justify-content: space-between; align-items: stretch; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: nowrap; height: 42px;">
-                        <select id="filtro-utente-registro" style="flex: 1; padding: 0 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: #cbd5e1; font-family: 'Outfit'; font-size: 0.95rem; box-sizing: border-box; outline: none;">
+                    <div class="registro-toolbar">
+                        <select id="filtro-utente-registro" class="registro-select">
                             <option value="Tutti">Tutti</option>
                         </select>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: rgba(255,255,255,0.05); padding: 0 1rem; border-radius: 8px; border: 1px solid var(--border-color); white-space: nowrap; box-sizing: border-box;">
-                            <input type="checkbox" id="filtro-mancanti-registro" style="margin: 0; width: 1.2rem; height: 1.2rem; cursor: pointer;">
-                            <label for="filtro-mancanti-registro" style="margin: 0; font-size: 0.95rem; color: #cbd5e1; cursor: pointer; user-select: none; display: flex; align-items: center; line-height: 1;">Senza Km</label>
+                        <div class="segmented" role="group" aria-label="Ordina per">
+                            <span class="seg-label">Ordina</span>
+                            <button type="button" class="seg-btn" data-ordina="viaggio" aria-pressed="true">Viaggio</button>
+                            <button type="button" class="seg-btn" data-ordina="inserimento" aria-pressed="false">Inserita</button>
                         </div>
+                    </div>
+                    <div class="registro-chips">
+                        <button type="button" id="chip-mancanti" class="chip" aria-pressed="false">Senza Km</button>
+                        <button type="button" id="chip-annullate" class="chip" aria-pressed="false">Mostra annullate</button>
+                        <span id="registro-conteggio" class="registro-conteggio"></span>
                     </div>
                     <ul id="lista-registro" class="list-container"></ul>
                 </div>
@@ -188,6 +195,7 @@
                         </div>
                         <p id="fuel-km" class="fuel-km">--</p>
                         <div class="fuel-bar"><div id="fuel-bar-fill" class="fuel-bar-fill"></div></div>
+                        <p id="fuel-odo" class="fuel-odo"></p>
                         <p id="fuel-note" class="fuel-note"></p>
                     </div>
 
@@ -296,6 +304,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js?v=12"></script>
+    <script src="app.js?v=15"></script>
 </body>
 </html>

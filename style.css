@@ -663,3 +663,130 @@ select option {
 .overlap-warning li {
     margin-top: 0.2rem;
 }
+
+/* --- Registro: barra filtri adatta al telefono --- */
+.registro-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+.registro-select {
+    flex: 1;
+    min-width: 0;
+    height: 42px;
+    margin: 0;
+    padding: 0 0.8rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
+}
+.segmented {
+    display: flex;
+    flex-shrink: 0;
+    padding: 3px;
+    gap: 3px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+}
+.seg-btn {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0 0.7rem;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+.seg-btn[aria-pressed="true"] {
+    background: var(--primary);
+    color: #fff;
+}
+.registro-chips {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+.chip {
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+.chip[aria-pressed="true"] {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.6);
+    color: #fde68a;
+}
+.registro-conteggio {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+.badge-futuro {
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.registro-vuoto {
+    list-style: none;
+    text-align: center;
+    color: #94a3b8;
+    padding: 1.5rem 0;
+}
+@media (max-width: 380px) {
+    .seg-btn { padding: 0 0.5rem; font-size: 0.8rem; }
+}
+.seg-label {
+    align-self: center;
+    font-size: 0.75rem;
+    color: #64748b;
+    padding: 0 0.3rem 0 0.4rem;
+}
+@media (max-width: 380px) {
+    .seg-label { display: none; }
+}
+
+/* --- Provenienza del valore AUTO --- */
+.auto-km-fonte {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #94a3b8;
+}
+.auto-km-fonte:empty { display: none; }
+.auto-km-fonte[data-tipo="ok"] { color: #86efac; }
+.auto-km-fonte[data-tipo="avviso"] { color: #fde68a; }
+
+/* --- Aggiornamento contachilometri nell'indicatore --- */
+.fuel-odo {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    margin-top: 0.7rem;
+}
+.fuel-odo:empty { display: none; }
+.fuel-odo[data-vecchio="si"] { color: #fde68a; }
+.fuel-odo + .fuel-note { margin-top: 0.3rem; }

@@ -24,6 +24,19 @@ function normalizzaRifornimenti(lista) {
 
 STATE.rifornimenti = normalizzaRifornimenti(STATE.rifornimenti);
 
+// I km percorsi si ricavano SEMPRE da Km Fine − Km Inizio: la colonna "Km" del foglio
+// può restare vecchia se qualcuno corregge a mano solo inizio o fine.
+function normalizzaPrenotazioni(lista) {
+    return lista.map(p => {
+        const kmInizio = parseInt(p.kmInizio) || 0;
+        const kmFine = parseInt(p.kmFine) || 0;
+        const km = (kmInizio > 0 && kmFine >= kmInizio) ? kmFine - kmInizio : 0;
+        return { ...p, kmInizio, kmFine, km };
+    });
+}
+
+STATE.prenotazioni = normalizzaPrenotazioni(STATE.prenotazioni);
+
 function saveData() {
     localStorage.setItem('prenotazioni', JSON.stringify(STATE.prenotazioni));
     localStorage.setItem('rifornimenti', JSON.stringify(STATE.rifornimenti));
@@ -354,27 +367,71 @@ window.switchDash = function(type) {
     document.getElementById(`dash-${type}`).style.display = 'block';
 };
 
+// --- Preferenze del Registro (ricordate su questo telefono) ---
+const REGISTRO_PREFS = (() => {
+    const def = { ordina: 'viaggio', soloMancanti: false, mostraAnnullate: false };
+    try { return { ...def, ...JSON.parse(localStorage.getItem('registroPrefs') || '{}') }; } catch (e) { return def; }
+})();
+function salvaPrefsRegistro() {
+    try { localStorage.setItem('registroPrefs', JSON.stringify(REGISTRO_PREFS)); } catch (e) { /* ignora */ }
+}
+
+// Istante di inizio/fine di un viaggio (per ordinare e per capire se è già avvenuto)
+function inizioViaggio(p) {
+    const t = new Date(`${p.dataInizio || p.data}T${p.inizio || '00:00'}`).getTime();
+    return isNaN(t) ? 0 : t;
+}
+function fineViaggio(p) {
+    const t = new Date(`${p.dataFine || p.dataInizio || p.data}T${p.fine || '23:59'}`).getTime();
+    return isNaN(t) ? 0 : t;
+}
+function kmMancanti(p) {
+    return p.status === 'attiva' && (!p.kmInizio || !p.kmFine);
+}
+
 // Render UI
 function renderRegistro() {
     const list = document.getElementById('lista-registro');
     list.innerHTML = '';
-    
+
     const filterSelect = document.getElementById('filtro-utente-registro');
     const selectedUser = filterSelect ? filterSelect.value : 'Tutti';
-    
-    const filterMancanti = document.getElementById('filtro-mancanti-registro');
-    const showOnlyMancanti = filterMancanti ? filterMancanti.checked : false;
-    
+
     let filtered = [...STATE.prenotazioni];
     if (selectedUser && selectedUser !== 'Tutti') {
         filtered = filtered.filter(p => p.utente === selectedUser);
     }
-    
-    if (showOnlyMancanti) {
-        filtered = filtered.filter(p => p.status === 'attiva' && (!p.kmInizio || p.kmInizio === 0 || !p.kmFine || p.kmFine === 0));
+
+    const numAnnullate = filtered.filter(p => p.status === 'cancellata').length;
+    if (!REGISTRO_PREFS.mostraAnnullate) {
+        filtered = filtered.filter(p => p.status !== 'cancellata');
     }
-    
-    const sorted = filtered.sort((a,b) => b.id - a.id);
+
+    if (REGISTRO_PREFS.soloMancanti) {
+        filtered = filtered.filter(kmMancanti);
+    }
+
+    // Aggiorna lo stato visivo dei controlli
+    document.querySelectorAll('.seg-btn[data-ordina]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ordina === REGISTRO_PREFS.ordina)));
+    const chipMancanti = document.getElementById('chip-mancanti');
+    if (chipMancanti) chipMancanti.setAttribute('aria-pressed', String(REGISTRO_PREFS.soloMancanti));
+    const chipAnnullate = document.getElementById('chip-annullate');
+    if (chipAnnullate) {
+        chipAnnullate.setAttribute('aria-pressed', String(REGISTRO_PREFS.mostraAnnullate));
+        chipAnnullate.textContent = `${REGISTRO_PREFS.mostraAnnullate ? 'Nascondi' : 'Mostra'} annullate (${numAnnullate})`;
+    }
+    const conteggio = document.getElementById('registro-conteggio');
+    if (conteggio) conteggio.textContent = `${filtered.length} ${filtered.length === 1 ? 'viaggio' : 'viaggi'}`;
+
+    const ora = Date.now();
+    const sorted = REGISTRO_PREFS.ordina === 'viaggio'
+        ? filtered.sort((a, b) => inizioViaggio(b) - inizioViaggio(a) || b.id - a.id)
+        : filtered.sort((a, b) => b.id - a.id);
+
+    if (!sorted.length) {
+        list.innerHTML = '<li class="registro-vuoto">Nessun viaggio da mostrare con questi filtri.</li>';
+    }
+
     sorted.forEach(p => {
         const li = document.createElement('li');
         li.className = 'list-item';
@@ -384,14 +441,15 @@ function renderRegistro() {
         
         let contentHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0;">
                     <span style="font-weight: 700; color: #fff; font-size: 1.1rem;">${p.utente}</span>
-                    <span style="background: #f59e0b; color: #ffffff; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">${p.km} Km</span>
+                    <span style="background: #f59e0b; color: #ffffff; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; white-space: nowrap;">${p.km} Km</span>
+                    ${p.status === 'attiva' && inizioViaggio(p) > ora ? '<span class="badge-futuro">In programma</span>' : ''}
                 </div>`;
                 
         if(p.status === 'attiva') {
             contentHTML += `
-                <div style="display: flex; align-items: center;">
+                <div style="display: flex; align-items: center; flex-shrink: 0;">
                     <button title="Modifica" style="background:none; border:none; font-size:1.2rem; cursor:pointer; margin-right:0.5rem; padding:0;" onclick="window.modificaPrenotazione(${p.id})">✏️</button>
                     <button class="delete-btn" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" onclick="window.cancellaPrenotazione(${p.id})">Annulla</button>
                 </div>`;
@@ -440,7 +498,9 @@ const FATTORE_PRUDENZA_AUTONOMIA = 0.8;
 // Letture reali del cruscotto per "agganciare" la stima del serbatoio.
 // Formato: { data: 'YYYY-MM-DD', ora: 'HH:MM', km: <contachilometri>, autonomia: <km "Auton." sul cruscotto> }
 const CALIBRAZIONI_SERBATOIO = [
-    { data: '2026-11-06', ora: '18:35', km: 104018, autonomia: 566 } // foto cruscotto del 06/11
+    { data: '2026-11-06', ora: '18:35', km: 104018, autonomia: 566 }, // foto cruscotto del 06/11
+    { data: '2026-11-08', ora: '15:17', km: 104172, autonomia: 429 }, // foto cruscotto del 08/11
+    { data: '2026-11-08', ora: '19:11', km: 104229, autonomia: 384 }  // foto cruscotto del 08/11 (la più recente)
 ];
 
 function prenotazioniValide(prenotazioni) {
@@ -572,7 +632,11 @@ function stimaAutonomia(prenotazioni, rifornimenti, consumo) {
     if (!letture.length) return null;
 
     const base = letture.sort((a, b) => a.t - b.t || a.km - b.km)[letture.length - 1];
-    const kmAttuali = Math.max(punti[punti.length - 1].km, base.km);
+    const ultimaLettura = punti[punti.length - 1];
+    const kmAttuali = Math.max(ultimaLettura.km, base.km);
+    // Quando è stato inserito l'ultimo valore del contachilometri (viaggio o lettura del cruscotto)
+    const tContachilometri = Math.min(Date.now(),
+        base.km >= ultimaLettura.km ? Math.max(base.t, ultimaLettura.t) : ultimaLettura.t);
     const kmDaAllora = kmAttuali - base.km;
     const rifDopo = rifornimenti.filter(r => r !== base.rif && r.litri > 0 && r.data && istanteRifornimento(r) > base.t);
     const litriDopo = rifDopo.reduce((s, r) => s + r.litri, 0);
@@ -583,7 +647,8 @@ function stimaAutonomia(prenotazioni, rifornimenti, consumo) {
         autonomiaKm,
         litri: autonomiaKm / consumo.kmPerL,
         percentuale: autonomiaKm / massima * 100,
-        base, kmAttuali, kmDaAllora, litriDopo,
+        base, kmAttuali, kmDaAllora, litriDopo, tContachilometri,
+        giorniDaContachilometri: Math.floor((Date.now() - tContachilometri) / 86400000),
         giorniDaLettura: Math.floor((Date.now() - base.t) / 86400000)
     };
 }
@@ -600,6 +665,8 @@ function renderIndicatoreBenzina(consumo) {
         document.getElementById('fuel-km').textContent = '--';
         document.getElementById('fuel-bar-fill').style.width = '0%';
         document.getElementById('fuel-litri').textContent = '';
+        const odoVuoto = document.getElementById('fuel-odo');
+        if (odoVuoto) odoVuoto.textContent = '';
         document.getElementById('fuel-note').textContent =
             'Nessuna lettura disponibile: al prossimo rifornimento inserisci l\'autonomia indicata dal cruscotto.';
         return;
@@ -617,6 +684,17 @@ function renderIndicatoreBenzina(consumo) {
     nota += ` · consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100km`;
     if (s.giorniDaLettura > 21) nota += ' · ⚠️ lettura vecchia: aggiornala al prossimo rifornimento';
     document.getElementById('fuel-note').textContent = nota;
+
+    // Quanto è aggiornato il contachilometri: se nessuno inserisce km da giorni, la stima può essere ottimista
+    const odo = document.getElementById('fuel-odo');
+    if (odo) {
+        const g = s.giorniDaContachilometri;
+        const quando = g <= 0 ? 'oggi' : g === 1 ? 'ieri' : `${g} giorni fa`;
+        odo.textContent = `🚗 Contachilometri aggiornato al ${new Date(s.tContachilometri).toLocaleDateString('it-IT')} ` +
+            `(${fmt(s.kmAttuali)} km, ${quando})` +
+            (g >= 3 ? ' · ⚠️ nessuno ha inserito km da qualche giorno: la stima potrebbe essere ottimista' : '');
+        odo.dataset.vecchio = g >= 3 ? 'si' : 'no';
+    }
 }
 
 function renderSovrapposizioni(analisi) {
@@ -1006,9 +1084,30 @@ const initFiltri = () => {
         filtroReg.addEventListener('change', renderRegistro);
     }
     
-    const filtroMancantiReg = document.getElementById('filtro-mancanti-registro');
-    if (filtroMancantiReg) {
-        filtroMancantiReg.addEventListener('change', renderRegistro);
+    document.querySelectorAll('.seg-btn[data-ordina]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            REGISTRO_PREFS.ordina = btn.dataset.ordina;
+            salvaPrefsRegistro();
+            renderRegistro();
+        });
+    });
+
+    const chipMancanti = document.getElementById('chip-mancanti');
+    if (chipMancanti) {
+        chipMancanti.addEventListener('click', () => {
+            REGISTRO_PREFS.soloMancanti = !REGISTRO_PREFS.soloMancanti;
+            salvaPrefsRegistro();
+            renderRegistro();
+        });
+    }
+
+    const chipAnnullate = document.getElementById('chip-annullate');
+    if (chipAnnullate) {
+        chipAnnullate.addEventListener('click', () => {
+            REGISTRO_PREFS.mostraAnnullate = !REGISTRO_PREFS.mostraAnnullate;
+            salvaPrefsRegistro();
+            renderRegistro();
+        });
     }
     
     const filtroRif = document.getElementById('filtro-utente-rifornimenti');
@@ -1036,7 +1135,7 @@ async function syncWithCloud() {
             
             // Sovrascriviamo lo stato locale con quello che arriva da Google Sheets (la fonte della verità)
             if (data.prenotazioni) {
-                STATE.prenotazioni = data.prenotazioni;
+                STATE.prenotazioni = normalizzaPrenotazioni(data.prenotazioni);
             }
             if (data.rifornimenti) {
                 STATE.rifornimenti = normalizzaRifornimenti(data.rifornimenti);
@@ -1057,17 +1156,25 @@ async function syncWithCloud() {
 
 // Avviamo la sincronizzazione in background all'apertura dell'app
 syncWithCloud().then(() => {
-    // Controlliamo se ci sono prenotazioni attive con Km mancanti (inizio o fine)
-    const prenotazioniIncomplete = STATE.prenotazioni.filter(p => 
-        p.status === 'attiva' && (!p.kmInizio || p.kmInizio === 0 || !p.kmFine || p.kmFine === 0)
-    );
+    // Promemoria km mancanti: solo viaggi GIÀ CONCLUSI negli ultimi 7 giorni (massimo 7, i più recenti).
+    // I viaggi futuri non hanno ancora km; quelli più vecchi restano nel Registro (filtro "Senza Km").
+    const ora = Date.now();
+    const SETTE_GIORNI = 7 * 24 * 60 * 60 * 1000;
+    const MAX_PROMEMORIA = 7;
 
-    if (prenotazioniIncomplete.length > 0) {
-        // Creiamo un elenco sintetico: Utente - Motivo
-        const dettagli = prenotazioniIncomplete.map(p => `• ${p.utente}: "${p.motivo || 'Senza motivo'}"`).join('\n');
-        
+    const conclusiSenzaKm = STATE.prenotazioni
+        .filter(p => kmMancanti(p) && fineViaggio(p) <= ora)
+        .sort((a, b) => fineViaggio(b) - fineViaggio(a));
+    const recenti = conclusiSenzaKm.filter(p => ora - fineViaggio(p) <= SETTE_GIORNI).slice(0, MAX_PROMEMORIA);
+    const altri = conclusiSenzaKm.length - recenti.length;
+
+    if (recenti.length > 0) {
+        const giorno = p => (p.dataInizio || p.data || '').split('-').reverse().slice(0, 2).join('/');
+        const dettagli = recenti.map(p => `• ${giorno(p)} ${p.utente}: "${(p.motivo || 'Senza motivo').trim()}"`).join('\n');
+        const coda = altri > 0 ? `\n\n(+${altri} più vecchi: li trovi nel Registro con il filtro "Senza Km")` : '';
+
         setTimeout(() => {
-            window.CustomAlert(`Attenzione, mancano i dati di "Conteggio iniziale" o "Conteggio finale" per:\n\n${dettagli}\n\nRicordatevi di aggiornarli!`, "Promemoria Km Mancanti");
+            window.CustomAlert(`Mancano i km di inizio o fine per questi viaggi degli ultimi 7 giorni:\n\n${dettagli}${coda}`, "Promemoria Km Mancanti");
         }, 500);
     }
 });
@@ -1139,40 +1246,75 @@ if (btnExportCsv) {
 }
 
 
-// --- LOGICA CHECKBOX KM PRECEDENTI ---
-function getLastKm() {
-    let maxKm = 0;
-    STATE.prenotazioni.forEach(p => {
-        if (p.status === 'attiva') {
-            const currentMax = p.kmFine || p.kmInizio || 0;
-            if (currentMax > maxKm) maxKm = currentMax;
-        }
-    });
-    return maxKm;
+// --- PULSANTE AUTO: km iniziali = km finali del viaggio precedente ---
+// Il viaggio "precedente" è quello che inizia subito prima, in ordine di data e ora,
+// rispetto al viaggio che si sta inserendo (non il km più alto del registro).
+function trovaViaggioPrecedente(istante) {
+    return prenotazioniValide(STATE.prenotazioni)
+        .filter(p => inizioViaggio(p) > 0 && inizioViaggio(p) < istante)
+        .sort((a, b) => inizioViaggio(b) - inizioViaggio(a))[0] || null;
+}
+
+function istanteNuovoViaggio() {
+    const data = document.getElementById('prenotazione-data-inizio').value;
+    const ora = document.getElementById('prenotazione-inizio').value || '00:00';
+    if (!data) return Date.now();
+    const t = new Date(`${data}T${ora}`).getTime();
+    return isNaN(t) ? Date.now() : t;
 }
 
 const btnAutoKm = document.getElementById('btn-auto-km-inizio');
 const inputKmInizio = document.getElementById('prenotazione-km-inizio');
+const fonteAutoKm = document.getElementById('auto-km-fonte');
+
+function impostaFonteAuto(testo, tipo) {
+    if (!fonteAutoKm) return;
+    fonteAutoKm.textContent = testo || '';
+    fonteAutoKm.dataset.tipo = tipo || '';
+}
+
 if (btnAutoKm && inputKmInizio) {
     btnAutoKm.addEventListener('click', () => {
         if (btnAutoKm.classList.contains('active')) {
             btnAutoKm.classList.remove('active');
             inputKmInizio.value = '';
-        } else {
-            const lastKm = getLastKm();
-            if (lastKm > 0) {
-                inputKmInizio.value = lastKm;
-                btnAutoKm.classList.add('active');
-            } else {
-                window.CustomAlert('Nessun dato chilometrico precedente trovato.', 'Attenzione');
-            }
+            impostaFonteAuto('');
+            return;
         }
+
+        const prec = trovaViaggioPrecedente(istanteNuovoViaggio());
+        if (!prec) {
+            window.CustomAlert("Non c'è nessun viaggio precedente a questa data: leggi i km dal cruscotto.", 'AUTO');
+            return;
+        }
+        const quando = `${(prec.dataInizio || prec.data || '').split('-').reverse().slice(0, 2).join('/')}`;
+        const motivo = (prec.motivo || '').trim();
+
+        if (!(prec.kmFine > 0)) {
+            impostaFonteAuto(`⚠️ ${prec.utente} (${quando}) non ha inserito i km finali: leggili dal cruscotto.`, 'avviso');
+            window.CustomAlert(
+                `Il viaggio precedente è di ${prec.utente} del ${quando}${motivo ? ` ("${motivo}")` : ''}, ma non ha i km finali.\n\n` +
+                'Per non creare errori, AUTO non inserisce nulla: leggi i km dal cruscotto.',
+                'Km precedenti mancanti');
+            return;
+        }
+
+        inputKmInizio.value = prec.kmFine;
+        btnAutoKm.classList.add('active');
+        impostaFonteAuto(`Da: fine viaggio di ${prec.utente} del ${quando} (${prec.kmFine.toLocaleString('it-IT')} km). Controlla che coincida col cruscotto.`, 'ok');
     });
     
-    // Se l'utente modifica a mano il valore, spegniamo il bottone
+// Se l'utente modifica a mano il valore, spegniamo il bottone
     inputKmInizio.addEventListener('input', () => {
         if (btnAutoKm.classList.contains('active')) {
             btnAutoKm.classList.remove('active');
         }
+        impostaFonteAuto('');
+    });
+
+    // Dopo l'invio del modulo (reset) togliamo stato e indicazione di AUTO
+    document.getElementById('form-prenotazione').addEventListener('reset', () => {
+        btnAutoKm.classList.remove('active');
+        impostaFonteAuto('');
     });
 }
