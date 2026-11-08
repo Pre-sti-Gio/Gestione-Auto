@@ -369,7 +369,7 @@ window.switchDash = function(type) {
 
 // --- Preferenze del Registro (ricordate su questo telefono) ---
 const REGISTRO_PREFS = (() => {
-    const def = { ordina: 'viaggio', soloMancanti: false, mostraAnnullate: false };
+    const def = { ordina: 'viaggio', soloMancanti: false, nascondiAnnullate: false };
     try { return { ...def, ...JSON.parse(localStorage.getItem('registroPrefs') || '{}') }; } catch (e) { return def; }
 })();
 function salvaPrefsRegistro() {
@@ -402,8 +402,8 @@ function renderRegistro() {
         filtered = filtered.filter(p => p.utente === selectedUser);
     }
 
-    const numAnnullate = filtered.filter(p => p.status === 'cancellata').length;
-    if (!REGISTRO_PREFS.mostraAnnullate) {
+    // Di default si vedono tutti i viaggi; ogni filtro attivo riduce l'elenco
+    if (REGISTRO_PREFS.nascondiAnnullate) {
         filtered = filtered.filter(p => p.status !== 'cancellata');
     }
 
@@ -417,8 +417,7 @@ function renderRegistro() {
     if (chipMancanti) chipMancanti.setAttribute('aria-pressed', String(REGISTRO_PREFS.soloMancanti));
     const chipAnnullate = document.getElementById('chip-annullate');
     if (chipAnnullate) {
-        chipAnnullate.setAttribute('aria-pressed', String(REGISTRO_PREFS.mostraAnnullate));
-        chipAnnullate.textContent = `Annullate (${numAnnullate})`;
+        chipAnnullate.setAttribute('aria-pressed', String(REGISTRO_PREFS.nascondiAnnullate));
     }
     const conteggio = document.getElementById('registro-conteggio');
     if (conteggio) conteggio.textContent = `${filtered.length} ${filtered.length === 1 ? 'viaggio' : 'viaggi'}`;
@@ -674,8 +673,10 @@ function renderIndicatoreBenzina(consumo) {
     document.getElementById('fuel-bar-fill').style.width = `${Math.max(3, s.percentuale).toFixed(0)}%`;
     document.getElementById('fuel-litri').textContent = `≈ ${s.litri.toFixed(0)} L su ${CAPACITA_SERBATOIO_L}`;
 
+    // "Aggiornato al": data dell'ultimo dato utile (km inserito o lettura del cruscotto)
     document.getElementById('fuel-note').textContent =
-        `Consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100 km`;
+        `Consumo ${consumo.reale ? 'reale' : 'stimato'} ${consumo.l100.toFixed(1).replace('.', ',')} L/100 km · ` +
+        `Aggiornato al ${new Date(s.tContachilometri).toLocaleDateString('it-IT')}`;
 }
 
 function renderSovrapposizioni(analisi) {
@@ -1085,7 +1086,7 @@ const initFiltri = () => {
     const chipAnnullate = document.getElementById('chip-annullate');
     if (chipAnnullate) {
         chipAnnullate.addEventListener('click', () => {
-            REGISTRO_PREFS.mostraAnnullate = !REGISTRO_PREFS.mostraAnnullate;
+            REGISTRO_PREFS.nascondiAnnullate = !REGISTRO_PREFS.nascondiAnnullate;
             salvaPrefsRegistro();
             renderRegistro();
         });
